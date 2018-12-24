@@ -1,1 +1,2 @@
 # ECE565_Purdue_register-versioning
+We tried to closely replicate a research paper on register versioning and observe the results in the o3 processor in gem5. As there has beenvlots of changes in multiple files I am only uploading the patch file along with the project report here. This project was done in collaboration with Mr Amogh Manjunath, a fellow masters student and with crucial inputs from Mr Vivekanandan K, Mr Piyush Agrawal (both fellow masters student) and Prof TIm Rogers.
