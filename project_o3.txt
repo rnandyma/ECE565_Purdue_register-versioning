@@ -1,0 +1,4018 @@
+Only in ./src/cpu/o3: '
+Only in ./src/cpu/o3: \
+diff -u ./src/cpu/o3/commit_impl.hh ./../gem5_new/src/cpu/o3/commit_impl.hh
+--- ./src/cpu/o3/commit_impl.hh	2018-11-27 17:26:57.678829393 -0500
++++ ./../gem5_new/src/cpu/o3/commit_impl.hh	2018-10-09 09:54:00.893200766 -0400
+@@ -1210,11 +1210,8 @@
+ 
+     // Update the commit rename map
+     for (int i = 0; i < head_inst->numDestRegs(); i++) {
+-        /*renameMap[tid]->setEntry(head_inst->flattenedDestRegIdx(i),
+-                                 (head_inst->renamedDestRegIdx(i)).first);*/
+-	renameMap[tid]->setEntry(head_inst->flattenedDestRegIdx(i),
+-                                 head_inst->renamedDestRegIdx(i)); //Amogh and Raunaq
+-
++        renameMap[tid]->setEntry(head_inst->flattenedDestRegIdx(i),
++                                 head_inst->renamedDestRegIdx(i));
+     }
+ 
+     // Finally clear the head ROB entry.
+Only in ./src/cpu/o3: .commit_impl.hh.swp
+diff -u ./src/cpu/o3/cpu.cc ./../gem5_new/src/cpu/o3/cpu.cc
+--- ./src/cpu/o3/cpu.cc	2018-12-04 18:24:44.801623422 -0500
++++ ./../gem5_new/src/cpu/o3/cpu.cc	2018-10-09 09:54:00.903201294 -0400
+@@ -371,37 +371,6 @@
+ 
+                             tid,
+                             bindRegs);
+-physicalRegtable[tid].init(
+-                            params->numPhysIntRegs,
+-                            lreg_idx,                  //Index for Logical. Regs
+-
+-                            
+-                            params->numPhysFloatRegs,
+-                            freg_idx,                  //Index for Float Regs
+-
+-                            TheISA::NumMiscRegs,
+-
+-                            //TheISA::ZeroReg,
+-                            //TheISA::ZeroReg,
+-
+-                            tid,
+-                            bindRegs);
+-
+-     regpredtable[tid].init(
+-                            params->numPhysIntRegs,
+-                            lreg_idx,                  //Index for Logical. Regs
+-
+-                            
+-                            params->numPhysFloatRegs,
+-                            freg_idx,                  //Index for Float Regs
+-
+-                            TheISA::NumMiscRegs,
+-
+-                            //TheISA::ZeroReg,
+-                            //TheISA::ZeroReg,
+-
+-                            tid,
+-                            bindRegs);
+ 
+         activateThreadEvent[tid].init(tid, this);
+         deallocateContextEvent[tid].init(tid, this);
+@@ -409,8 +378,6 @@
+ 
+     rename.setRenameMap(renameMap);
+     commit.setRenameMap(commitRenameMap);
+-rename.setPhysicalRegtable(physicalRegtable);
+-rename.setPredictortable(regpredtable);
+ 
+     // Give renameMap & rename stage access to the freeList;
+     for (ThreadID tid = 0; tid < numThreads; tid++)
+@@ -866,31 +833,17 @@
+     //Bind Int Regs to Rename Map
+     for (int ireg = 0; ireg < TheISA::NumIntRegs; ireg++) {
+         PhysRegIndex phys_reg = freeList.getIntReg();
+-typedef std::pair<PhysRegIndex, int> VersionInfo;
+-        VersionInfo Version;
+-Version =  physicalRegtable[tid].setPRTEntry(phys_reg,0,0,0);
+-
+-        //renameMap[tid].setEntry(ireg,phys_reg);
+-	renameMap[tid].setEntry(ireg,Version); //Amogh and Raunaq
+-
+-       // scoreboard.setReg(phys_reg);
+-       scoreboard.setReg(Version.first*4+Version.second);
+ 
++        renameMap[tid].setEntry(ireg,phys_reg);
++        scoreboard.setReg(phys_reg);
+     }
+ 
+     //Bind Float Regs to Rename Map
+     for (int freg = 0; freg < TheISA::NumFloatRegs; freg++) {
+         PhysRegIndex phys_reg = freeList.getFloatReg();
+-typedef std::pair<PhysRegIndex, int> VersionInfo;
+-        VersionInfo Version;
+- Version =  physicalRegtable[tid].setPRTEntry(phys_reg,0,0,0);
+-
+-     //   renameMap[tid].setEntry(freg,phys_reg);
+-	renameMap[tid].setEntry(freg,Version); //Amogh and Raunaq
+-
+-     //   scoreboard.setReg(phys_reg);
+-        scoreboard.setReg(Version.first*4+Version.second);
+ 
++        renameMap[tid].setEntry(freg,phys_reg);
++        scoreboard.setReg(phys_reg);
+     }
+ 
+     //Copy Thread Data Into RegFile
+@@ -922,36 +875,21 @@
+     // @todo: 2-27-2008: Fix how we free up rename mappings
+     // here to alleviate the case for double-freeing registers
+     // in SMT workloads.
+-typedef std::pair<PhysRegIndex, int> VersionInfo;
+-        VersionInfo Version;
+ 
+     // Unbind Int Regs from Rename Map
+     for (int ireg = 0; ireg < TheISA::NumIntRegs; ireg++) {
+-        //PhysRegIndex phys_reg = renameMap[tid].lookup(ireg);
+-//Version = physicalRegtable[tid].lookup(phys_reg);
++        PhysRegIndex phys_reg = renameMap[tid].lookup(ireg);
+ 
+-VersionInfo phys_version = renameMap[tid].lookup(ireg);
+-Version = physicalRegtable[tid].lookup(phys_version.first);
+- //Amogh and Raunaq
+-
+-        //scoreboard.unsetReg(phys_reg);
+-        scoreboard.unsetReg(Version.first*4+Version.second);
+-
+-freeList.addReg(phys_version.first);
++        scoreboard.unsetReg(phys_reg);
++        freeList.addReg(phys_reg);
+     }
+ 
+     // Unbind Float Regs from Rename Map
+     for (int freg = TheISA::NumIntRegs; freg < TheISA::NumFloatRegs; freg++) {
+-//        PhysRegIndex phys_reg = renameMap[tid].lookup(freg);
+-//Version = physicalRegtable[tid].lookup(phys_reg);
+-VersionInfo phys_version = renameMap[tid].lookup(freg);
+-Version = physicalRegtable[tid].lookup(phys_version.first);
+- //Amogh and Raunaq
++        PhysRegIndex phys_reg = renameMap[tid].lookup(freg);
+ 
+-        //scoreboard.unsetReg(phys_reg);
+-        scoreboard.unsetReg(Version.first*4+Version.second);
+-
+-        freeList.addReg(phys_version.first);
++        scoreboard.unsetReg(phys_reg);
++        freeList.addReg(phys_reg);
+     }
+ 
+     // Squash Throughout Pipeline
+@@ -1375,115 +1313,55 @@
+     this->isa[tid].setMiscReg(misc_reg, val, tcBase(tid));
+ }
+ 
+-/*template <class Impl>
++template <class Impl>
+ uint64_t
+ FullO3CPU<Impl>::readIntReg(int reg_idx)
+ {
+     intRegfileReads++;
+     return regFile.readIntReg(reg_idx);
+-}*/
+-
+-template <class Impl> // Amogh and Raunaq
+-uint64_t
+-FullO3CPU<Impl>::readIntReg(VersionInfo reg_version)
+-{
+-    intRegfileReads++;
+-    return regFile.readIntReg(reg_version);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ FloatReg
+ FullO3CPU<Impl>::readFloatReg(int reg_idx)
+ {
+     fpRegfileReads++;
+     return regFile.readFloatReg(reg_idx);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-FloatReg
+-FullO3CPU<Impl>::readFloatReg(VersionInfo reg_version)
+-{
+-    fpRegfileReads++;
+-    return regFile.readFloatReg(reg_version);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ FloatRegBits
+ FullO3CPU<Impl>::readFloatRegBits(int reg_idx)
+ {
+     fpRegfileReads++;
+     return regFile.readFloatRegBits(reg_idx);
+-}*/
+-
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-FloatRegBits
+-FullO3CPU<Impl>::readFloatRegBits(VersionInfo reg_version)
+-{
+-    fpRegfileReads++;
+-    return regFile.readFloatRegBits(reg_version);
+ }
+ 
+-/*template <class Impl>
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setIntReg(int reg_idx, uint64_t val)
+ {
+     intRegfileWrites++;
+     regFile.setIntReg(reg_idx, val);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setIntReg(VersionInfo reg_version, uint64_t val)
+-{
+-    intRegfileWrites++;
+-    regFile.setIntReg(reg_version, val);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setFloatReg(int reg_idx, FloatReg val)
+ {
+     fpRegfileWrites++;
+     regFile.setFloatReg(reg_idx, val);
+-}*/
+-
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setFloatReg(VersionInfo reg_version, FloatReg val)
+-{
+-    fpRegfileWrites++;
+-    regFile.setFloatReg(reg_version, val);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setFloatRegBits(int reg_idx, FloatRegBits val)
+ {
+     fpRegfileWrites++;
+     regFile.setFloatRegBits(reg_idx, val);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setFloatRegBits(VersionInfo reg_version, FloatRegBits val)
+-{
+-    fpRegfileWrites++;
+-    regFile.setFloatRegBits(reg_version, val);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ uint64_t
+ FullO3CPU<Impl>::readArchIntReg(int reg_idx, ThreadID tid)
+ {
+@@ -1491,22 +1369,9 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(reg_idx);
+ 
+     return regFile.readIntReg(phys_reg);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-uint64_t
+-FullO3CPU<Impl>::readArchIntReg(int reg_idx, ThreadID tid)
+-{
+-    intRegfileReads++;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(reg_idx);
+-
+-    return regFile.readIntReg(phys_version);
+ }
+ 
+-
+-
+-/*template <class Impl>
++template <class Impl>
+ float
+ FullO3CPU<Impl>::readArchFloatReg(int reg_idx, ThreadID tid)
+ {
+@@ -1515,22 +1380,9 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(idx);
+ 
+     return regFile.readFloatReg(phys_reg);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-float
+-FullO3CPU<Impl>::readArchFloatReg(int reg_idx, ThreadID tid)
+-{
+-    fpRegfileReads++;
+-    int idx = reg_idx + TheISA::NumIntRegs;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(idx);
+-
+-    return regFile.readFloatReg(phys_version);
+ }
+ 
+-
+-/*template <class Impl>
++template <class Impl>
+ uint64_t
+ FullO3CPU<Impl>::readArchFloatRegInt(int reg_idx, ThreadID tid)
+ {
+@@ -1539,22 +1391,9 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(idx);
+ 
+     return regFile.readFloatRegBits(phys_reg);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-uint64_t
+-FullO3CPU<Impl>::readArchFloatRegInt(int reg_idx, ThreadID tid)
+-{
+-    fpRegfileReads++;
+-    int idx = reg_idx + TheISA::NumIntRegs;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(idx);
+-
+-    return regFile.readFloatRegBits(phys_version);
+ }
+ 
+-
+-/*template <class Impl> //Amogh and Raunaq
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setArchIntReg(int reg_idx, uint64_t val, ThreadID tid)
+ {
+@@ -1562,21 +1401,9 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(reg_idx);
+ 
+     regFile.setIntReg(phys_reg, val);
+-}*/
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setArchIntReg(int reg_idx, uint64_t val, ThreadID tid)
+-{
+-    intRegfileWrites++;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(reg_idx);
+-
+-    regFile.setIntReg(phys_version, val);
+ }
+ 
+-
+-
+-/*template <class Impl>
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setArchFloatReg(int reg_idx, float val, ThreadID tid)
+ {
+@@ -1585,23 +1412,9 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(idx);
+ 
+     regFile.setFloatReg(phys_reg, val);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setArchFloatReg(int reg_idx, float val, ThreadID tid)
+-{
+-    fpRegfileWrites++;
+-    int idx = reg_idx + TheISA::NumIntRegs;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(idx);
+-
+-    regFile.setFloatReg(phys_version, val);
+ }
+ 
+-
+-
+-/*template <class Impl>
++template <class Impl>
+ void
+ FullO3CPU<Impl>::setArchFloatRegInt(int reg_idx, uint64_t val, ThreadID tid)
+ {
+@@ -1610,21 +1423,8 @@
+     PhysRegIndex phys_reg = commitRenameMap[tid].lookup(idx);
+ 
+     regFile.setFloatRegBits(phys_reg, val);
+-}*/
+-
+-
+-template <class Impl> //Amogh and Raunaq
+-void
+-FullO3CPU<Impl>::setArchFloatRegInt(int reg_idx, uint64_t val, ThreadID tid)
+-{
+-    fpRegfileWrites++;
+-    int idx = reg_idx + TheISA::NumIntRegs;
+-    VersionInfo phys_version = commitRenameMap[tid].lookup(idx);
+-
+-    regFile.setFloatRegBits(phys_version, val);
+ }
+ 
+-
+ template <class Impl>
+ TheISA::PCState
+ FullO3CPU<Impl>::pcState(ThreadID tid)
+Only in ./src/cpu/o3: .cpu.cc.swm
+Only in ./src/cpu/o3: .cpu.cc.swn
+Only in ./src/cpu/o3: .cpu.cc.swo
+Only in ./src/cpu/o3: .cpu.cc.swp
+diff -u ./src/cpu/o3/cpu.hh ./../gem5_new/src/cpu/o3/cpu.hh
+--- ./src/cpu/o3/cpu.hh	2018-12-04 17:23:15.264370454 -0500
++++ ./../gem5_new/src/cpu/o3/cpu.hh	2018-10-09 09:54:00.911201716 -0400
+@@ -106,8 +106,6 @@
+     typedef O3ThreadState<Impl> Thread;
+ 
+     typedef typename std::list<DynInstPtr>::iterator ListIt;
+-    //Amogh and Raunaq
+-    typedef std::pair<PhysRegIndex,int> VersionInfo;
+ 
+     friend class O3ThreadContext<Impl>;
+ 
+@@ -494,7 +492,7 @@
+     void setMiscReg(int misc_reg, const TheISA::MiscReg &val,
+             ThreadID tid);
+ 
+-    /*uint64_t readIntReg(int reg_idx);
++    uint64_t readIntReg(int reg_idx);
+ 
+     TheISA::FloatReg readFloatReg(int reg_idx);
+ 
+@@ -510,29 +508,8 @@
+ 
+     float readArchFloatReg(int reg_idx, ThreadID tid);
+ 
+-    uint64_t readArchFloatRegInt(int reg_idx, ThreadID tid);*/
+-
+-//Modified funstion wit version as an argument //Amogh and Raunaq
+-
+-   uint64_t readIntReg(VersionInfo reg_version);
+-
+-    TheISA::FloatReg readFloatReg(VersionInfo reg_version);
+-
+-    TheISA::FloatRegBits readFloatRegBits(VersionInfo reg_version);
+-
+-    void setIntReg(VersionInfo reg_version, uint64_t val);
+-
+-    void setFloatReg(VersionInfo reg_version, TheISA::FloatReg val);
+-
+-    void setFloatRegBits(VersionInfo reg_version, TheISA::FloatRegBits val);
+-
+-    uint64_t readArchIntReg(int reg_idx, ThreadID tid);
+-
+-    float readArchFloatReg(int reg_idx, ThreadID tid);
+-
+     uint64_t readArchFloatRegInt(int reg_idx, ThreadID tid);
+ 
+-
+     /** Architectural register accessors.  Looks up in the commit
+      * rename table to obtain the true physical index of the
+      * architected register first, then accesses that physical
+@@ -544,15 +521,6 @@
+ 
+     void setArchFloatRegInt(int reg_idx, uint64_t val, ThreadID tid);
+ 
+-
+-/*
+-    void setArchIntReg(int reg_idx, uint64_t val, ThreadID tid);
+-
+-    void setArchFloatReg(int reg_idx, float val, ThreadID tid);
+-
+-    void setArchFloatRegInt(int reg_idx, uint64_t val, ThreadID tid);*/ //Amogh and Raunaq
+-
+-
+     /** Sets the commit PC state of a specific thread. */
+     void pcState(const TheISA::PCState &newPCState, ThreadID tid);
+ 
+@@ -653,12 +621,6 @@
+ 
+     /** The rename map. */
+     typename CPUPolicy::RenameMap renameMap[Impl::MaxThreads];
+-/**modified by AMogh and Raunaq **/
+-    /**The physical reg table **/
+-    typename CPUPolicy::PhysicalRegtable physicalRegtable[Impl::MaxThreads];
+-
+-    /**The reg pred table **/
+-    typename CPUPolicy::RegPredTable regpredtable[Impl::MaxThreads];  
+ 
+     /** The commit rename map. */
+     typename CPUPolicy::RenameMap commitRenameMap[Impl::MaxThreads];
+Only in ./src/cpu/o3: .cpu.hh.swm
+Only in ./src/cpu/o3: .cpu.hh.swn
+Only in ./src/cpu/o3: .cpu.hh.swo
+Only in ./src/cpu/o3: .cpu.hh.swp
+diff -u ./src/cpu/o3/cpu_policy.hh ./../gem5_new/src/cpu/o3/cpu_policy.hh
+--- ./src/cpu/o3/cpu_policy.hh	2018-12-04 17:08:55.206592236 -0500
++++ ./../gem5_new/src/cpu/o3/cpu_policy.hh	2018-10-09 09:54:00.923202350 -0400
+@@ -47,8 +47,6 @@
+ #include "cpu/o3/rename_map.hh"
+ #include "cpu/o3/rob.hh"
+ #include "cpu/o3/store_set.hh"
+-#include "cpu/o3/prt.hh"
+-#include "cpu/o3/reg_pred.hh"
+ 
+ /**
+  * Struct that defines the key classes to be used by the CPU.  All
+@@ -74,13 +72,6 @@
+     typedef SimpleFreeList FreeList;
+     /** Typedef for the rename map. */
+     typedef SimpleRenameMap RenameMap;
+-
+-    /**Modified by Amogh and Raunaq **/
+-    /**Typedef for the physical register table for versioning **/
+-    typedef simplephysicalregtable PhysicalRegtable; 
+-    typedef simpleRegisterPredictorTable RegPredTable;    //Amogh and Raunaq predictor
+-    /**Modified by Amogh and Raunaq **/
+-
+     /** Typedef for the ROB. */
+     typedef ::ROB<Impl> ROB;
+     /** Typedef for the instruction queue/scheduler. */
+Only in ./src/cpu/o3: .cpu_policy.hh.swp
+diff -u ./src/cpu/o3/dep_graph.hh ./../gem5_new/src/cpu/o3/dep_graph.hh
+--- ./src/cpu/o3/dep_graph.hh	2018-11-26 12:04:51.140504177 -0500
++++ ./../gem5_new/src/cpu/o3/dep_graph.hh	2018-10-09 09:54:00.949203724 -0400
+@@ -69,62 +69,37 @@
+     { }
+ 
+     ~DependencyGraph();
+-     typedef std::pair<PhysRegIndex, int> VersionInfo;
++
+     /** Resize the dependency graph to have num_entries registers. */
+-    //void resize(int num_entries);
+-     void resize(int num_entries);//Amogh and Raunaq
++    void resize(int num_entries);
+ 
+     /** Clears all of the linked lists. */
+     void reset();
+ 
+     /** Inserts an instruction to be dependent on the given index. */
+-    //void insert(PhysRegIndex idx, DynInstPtr &new_inst);
++    void insert(PhysRegIndex idx, DynInstPtr &new_inst);
+ 
+     /** Sets the producing instruction of a given register. */
+-    //void setInst(PhysRegIndex idx, DynInstPtr &new_inst)
+-    //{ dependGraph[idx].inst = new_inst; }
++    void setInst(PhysRegIndex idx, DynInstPtr &new_inst)
++    { dependGraph[idx].inst = new_inst; }
+ 
+     /** Clears the producing instruction. */
+-    //void clearInst(PhysRegIndex idx)
+-    //{ dependGraph[idx].inst = NULL; }
++    void clearInst(PhysRegIndex idx)
++    { dependGraph[idx].inst = NULL; }
+ 
+     /** Removes an instruction from a single linked list. */
+-    //void remove(PhysRegIndex idx, DynInstPtr &inst_to_remove);
++    void remove(PhysRegIndex idx, DynInstPtr &inst_to_remove);
+ 
+     /** Removes and returns the newest dependent of a specific register. */
+-    //DynInstPtr pop(PhysRegIndex idx);
++    DynInstPtr pop(PhysRegIndex idx);
+ 
+     /** Checks if there are any dependents on a specific register. */
+-    //bool empty(PhysRegIndex idx) { return !dependGraph[idx].next; }
++    bool empty(PhysRegIndex idx) { return !dependGraph[idx].next; }
+ 
+     /** Debugging function to dump out the dependency graph.
+      */
+     void dump();
+ 
+-
+-
+-
+-/** Inserts an instruction to be dependent on the given index. */
+-    void insert(VersionInfo idx, DynInstPtr &new_inst); //Amogh and Raunaq
+-
+-    /** Sets the producing instruction of a given register. */
+-    void setInst(VersionInfo idx, DynInstPtr &new_inst)
+-    { dependGraph[idx.first*4+idx.second].inst = new_inst; } // AMogh and Raunaq
+-
+-    /** Clears the producing instruction. */
+-    void clearInst(VersionInfo idx)
+-    { dependGraph[idx.first*4+idx.second].inst = NULL; } //Amogh and Raunaq
+-
+-    /** Removes an instruction from a single linked list. */
+-    void remove(VersionInfo idx, DynInstPtr &inst_to_remove); //Amogh and Raunaq
+-
+-    /** Removes and returns the newest dependent of a specific register. */
+-    DynInstPtr pop(VersionInfo idx); //Amogh and Raunaq
+-
+-    /** Checks if there are any dependents on a specific register. */
+-    bool empty(VersionInfo idx) { return !dependGraph[idx.first*4+idx.second].next; } //Amogh and Raunaq
+-
+-
+   private:
+     /** Array of linked lists.  Each linked list is a list of all the
+      *  instructions that depend upon a given register.  The actual
+@@ -190,7 +165,7 @@
+     }
+ }
+ 
+-/*template <class DynInstPtr>
++template <class DynInstPtr>
+ void
+ DependencyGraph<DynInstPtr>::insert(PhysRegIndex idx, DynInstPtr &new_inst)
+ {
+@@ -207,29 +182,10 @@
+     dependGraph[idx].next = new_entry;
+ 
+     ++memAllocCounter;
+-}*/
+-
+-template <class DynInstPtr>
+-void
+-DependencyGraph<DynInstPtr>::insert(VersionInfo idx, DynInstPtr &new_inst)
+-{
+-    //Add this new, dependent instruction at the head of the dependency
+-    //chain.
+-
+-    // First create the entry that will be added to the head of the
+-    // dependency chain.
+-    DepEntry *new_entry = new DepEntry;
+-    new_entry->next = dependGraph[idx.first*4+idx.second].next;
+-    new_entry->inst = new_inst;
+-
+-    // Then actually add it to the chain.
+-    dependGraph[idx.first*4+idx.second].next = new_entry;
+-
+-    ++memAllocCounter;
+ }
+- //Amogh and Raunaq
+ 
+-/*template <class DynInstPtr>
++
++template <class DynInstPtr>
+ void
+ DependencyGraph<DynInstPtr>::remove(PhysRegIndex idx,
+                                     DynInstPtr &inst_to_remove)
+@@ -265,48 +221,9 @@
+     curr->inst = NULL;
+ 
+     delete curr;
+-}*/
++}
+ 
+ template <class DynInstPtr>
+-void
+-DependencyGraph<DynInstPtr>::remove(VersionInfo idx,
+-                                    DynInstPtr &inst_to_remove)
+-{
+-    DepEntry *prev = &dependGraph[idx.first*4+idx.second];
+-    DepEntry *curr = dependGraph[idx.first*4+idx.second].next;
+-
+-    // Make sure curr isn't NULL.  Because this instruction is being
+-    // removed from a dependency list, it must have been placed there at
+-    // an earlier time.  The dependency chain should not be empty,
+-    // unless the instruction dependent upon it is already ready.
+-    if (curr == NULL) {
+-        return;
+-    }
+-
+-    nodesRemoved++;
+-
+-    // Find the instruction to remove within the dependency linked list.
+-    while (curr->inst != inst_to_remove) {
+-        prev = curr;
+-        curr = curr->next;
+-        nodesTraversed++;
+-
+-        assert(curr != NULL);
+-    }
+-
+-    // Now remove this instruction from the list.
+-    prev->next = curr->next;
+-
+-    --memAllocCounter;
+-
+-    // Could push this off to the destructor of DependencyEntry
+-    curr->inst = NULL;
+-
+-    delete curr;
+-}//Amogh and Raunaq
+-
+-
+-/*template <class DynInstPtr>
+ DynInstPtr
+ DependencyGraph<DynInstPtr>::pop(PhysRegIndex idx)
+ {
+@@ -321,24 +238,8 @@
+         delete node;
+     }
+     return inst;
+-}*/
+-template <class DynInstPtr>
+-DynInstPtr
+-DependencyGraph<DynInstPtr>::pop(VersionInfo idx)
+-{
+-    DepEntry *node;
+-    node = dependGraph[idx.first*4+idx.second].next;
+-    DynInstPtr inst = NULL;
+-    if (node) {
+-        inst = node->inst;
+-        dependGraph[idx.first*4+idx.second].next = node->next;
+-        node->inst = NULL;
+-        memAllocCounter--;
+-        delete node;
+-    }
+-    return inst;
+ }
+- //Amogh and Raunaq
++
+ template <class DynInstPtr>
+ void
+ DependencyGraph<DynInstPtr>::dump()
+@@ -368,33 +269,4 @@
+     cprintf("memAllocCounter: %i\n", memAllocCounter);
+ }
+ 
+-/*template <class DynInstPtr>
+-void
+-DependencyGraph<DynInstPtr>::dump()
+-{
+-    DepEntry *curr;
+-
+-    for (int i = 0; i < numEntries; ++i)
+-    {
+-        curr = &dependGraph[i];
+-
+-        if (curr->inst) {
+-            cprintf("dependGraph[%i]: producer: %s [sn:%lli] consumer: ",
+-                    i, curr->inst->pcState(), curr->inst->seqNum);
+-        } else {
+-            cprintf("dependGraph[%i]: No producer. consumer: ", i);
+-        }
+-
+-        while (curr->next != NULL) {
+-            curr = curr->next;
+-
+-            cprintf("%s [sn:%lli] ",
+-                    curr->inst->pcState(), curr->inst->seqNum);
+-        }
+-
+-        cprintf("\n");
+-    }
+-    cprintf("memAllocCounter: %i\n", memAllocCounter);
+-}
+-*/ //Amogh and Raunaq
+ #endif // __CPU_O3_DEP_GRAPH_HH__
+diff -u ./src/cpu/o3/dyn_inst.hh ./../gem5_new/src/cpu/o3/dyn_inst.hh
+--- ./src/cpu/o3/dyn_inst.hh	2018-12-04 19:06:43.633583636 -0500
++++ ./../gem5_new/src/cpu/o3/dyn_inst.hh	2018-10-09 09:54:00.961204358 -0400
+@@ -78,7 +78,6 @@
+     typedef TheISA::FloatRegBits FloatRegBits;
+     /** Misc register index type. */
+     typedef TheISA::MiscReg  MiscReg;
+-    typedef std::pair<PhysRegIndex, int> VersionInfo;
+ 
+     enum {
+         MaxInstSrcRegs = TheISA::MaxInstSrcRegs,        //< Max source regs
+@@ -198,13 +197,12 @@
+     {
+ 
+         for (int idx = 0; idx < this->numDestRegs(); idx++) {
+-            //PhysRegIndex prev_phys_reg = this->prevDestRegIdx(idx);
+-	    VersionInfo prev_phys_version = this->prevDestRegIdx(idx);
++            PhysRegIndex prev_phys_reg = this->prevDestRegIdx(idx);
+             TheISA::RegIndex original_dest_reg = this->staticInst->destRegIdx(idx);
+             if (original_dest_reg <  TheISA::FP_Base_DepTag)
+-                {/*this->setIntRegOperand(this->staticInst.get(), idx, this->cpu->readIntReg(prev_phys_reg));*/ this->setIntRegOperand(this->staticInst.get(), idx, this->cpu->readIntReg(prev_phys_version));} //Amogh Raunaq
+-            else if (original_dest_reg < TheISA::Ctrl_Base_DepTag) //Amogh Raunaq
+-                {/*this->setFloatRegOperandBits(this->staticInst.get(), idx, this->cpu->readFloatRegBits(prev_phys_reg));*/   this->setFloatRegOperandBits(this->staticInst.get(), idx, this->cpu->readFloatRegBits(prev_phys_version));}
++                this->setIntRegOperand(this->staticInst.get(), idx, this->cpu->readIntReg(prev_phys_reg));
++            else if (original_dest_reg < TheISA::Ctrl_Base_DepTag)
++                this->setFloatRegOperandBits(this->staticInst.get(), idx, this->cpu->readFloatRegBits(prev_phys_reg));
+         }
+     }
+     /** Calls hardware return from error interrupt. */
+@@ -275,7 +273,7 @@
+ 
+     void setRegOtherThread(int misc_reg, const TheISA::MiscReg &val)
+     {
+-       panic("MIPS MT not defined for O3 CPU.\n");
++        panic("MIPS MT not defined for O3 CPU.\n");
+     }
+ #endif
+ 
+diff -u ./src/cpu/o3/dyn_inst_impl.hh ./../gem5_new/src/cpu/o3/dyn_inst_impl.hh
+--- ./src/cpu/o3/dyn_inst_impl.hh	2018-11-26 13:17:25.073330259 -0500
++++ ./../gem5_new/src/cpu/o3/dyn_inst_impl.hh	2018-10-09 09:54:00.970204833 -0400
+@@ -98,18 +98,11 @@
+     // as the normal register entries.  It will allow the IQ to work
+     // without any modifications.
+     for (int i = 0; i < this->staticInst->numDestRegs(); i++) {
+-        std::pair<PhysRegIndex, int> dest_Version;
+-	dest_Version = std::make_pair(this->staticInst->destRegIdx(i),0);
+-	this->_destRegIdx[i]=dest_Version; 
+-	//(this->_destRegIdx[i]) = this->staticInst->destRegIdx(i); //Amogh and Raunaq
++        this->_destRegIdx[i] = this->staticInst->destRegIdx(i);
+     }
+ 
+     for (int i = 0; i < this->staticInst->numSrcRegs(); i++) {
+-        std::pair<PhysRegIndex, int> src_Version;
+-	src_Version = std::make_pair(this->staticInst->srcRegIdx(i),0);
+-	this->_srcRegIdx[i]=src_Version; 
+-
+-	//(this->_srcRegIdx[i]) = this->staticInst->srcRegIdx(i); //Amogh and Raunaq
++        this->_srcRegIdx[i] = this->staticInst->srcRegIdx(i);
+     }
+ 
+     this->_readySrcRegIdx.reset();
+@@ -238,8 +231,8 @@
+ void
+ BaseO3DynInst<Impl>::syscall(int64_t callnum)
+ {
+-   if (FullSystem)
+-      panic("Syscall emulation isn't available in FS mode.\n");
++    if (FullSystem)
++        panic("Syscall emulation isn't available in FS mode.\n");
+ 
+     // HACK: check CPU's nextPC before and after syscall. If it
+     // changes, update this instruction's nextPC because the syscall
+diff -u ./src/cpu/o3/iew.hh ./../gem5_new/src/cpu/o3/iew.hh
+--- ./src/cpu/o3/iew.hh	2018-11-27 17:43:31.854959143 -0500
++++ ./../gem5_new/src/cpu/o3/iew.hh	2018-10-09 09:54:01.076210433 -0400
+@@ -221,7 +221,7 @@
+     {
+         if (++wbOutstanding == wbMax)
+             ableToIssue = false;
+-        //DPRINTF(IEW, "wbOutstanding: %i [sn:%lli]\n", wbOutstanding, sn);
++        DPRINTF(IEW, "wbOutstanding: %i [sn:%lli]\n", wbOutstanding, sn);
+         assert(wbOutstanding <= wbMax);
+ #ifdef DEBUG
+         wbList.insert(sn);
+@@ -232,7 +232,7 @@
+     {
+         if (wbOutstanding-- == wbMax)
+             ableToIssue = true;
+-        //DPRINTF(IEW, "wbOutstanding: %i [sn:%lli]\n", wbOutstanding, sn);
++        DPRINTF(IEW, "wbOutstanding: %i [sn:%lli]\n", wbOutstanding, sn);
+         assert(wbOutstanding >= 0);
+ #ifdef DEBUG
+         assert(wbList.find(sn) != wbList.end());
+diff -u ./src/cpu/o3/iew_impl.hh ./../gem5_new/src/cpu/o3/iew_impl.hh
+--- ./src/cpu/o3/iew_impl.hh	2018-11-30 11:06:23.154624136 -0500
++++ ./../gem5_new/src/cpu/o3/iew_impl.hh	2018-10-09 09:54:01.085210910 -0400
+@@ -1041,7 +1041,7 @@
+             ++iewIQFullEvents;
+             break;
+         } else if (ldstQueue.isFull(tid)) {
+-           DPRINTF(IEW, "[tid:%i]: Issue: LSQ has become full.\n",tid);
++            DPRINTF(IEW, "[tid:%i]: Issue: LSQ has become full.\n",tid);
+ 
+             // Call function to start blocking.
+             block(tid);
+@@ -1058,7 +1058,7 @@
+         // Otherwise issue the instruction just fine.
+         if (inst->isLoad()) {
+             DPRINTF(IEW, "[tid:%i]: Issue: Memory instruction "
+-                   "encountered, adding to LSQ.\n", tid);
++                    "encountered, adding to LSQ.\n", tid);
+ 
+             // Reserve a spot in the load store queue for this
+             // memory access.
+@@ -1113,7 +1113,7 @@
+         } else if (inst->isExecuted()) {
+             assert(0 && "Instruction shouldn't be executed.\n");
+             DPRINTF(IEW, "Issue: Executed branch encountered, "
+-                   "skipping.\n");
++                    "skipping.\n");
+ 
+             inst->setIssued();
+             inst->setCanCommit();
+@@ -1219,7 +1219,7 @@
+     for (; inst_num < insts_to_execute;
+           ++inst_num) {
+ 
+-       DPRINTF(IEW, "Execute: Executing instructions from IQ.\n");
++        DPRINTF(IEW, "Execute: Executing instructions from IQ.\n");
+ 
+         DynInstPtr inst = instQueue.getInstToExecute();
+ 
+@@ -1282,7 +1282,7 @@
+                     // A hw page table walk is currently going on; the
+                     // instruction must be deferred.
+                     DPRINTF(IEW, "Execute: Delayed translation, deferring "
+-                           "store.\n");
++                            "store.\n");
+                     instQueue.deferMemInst(inst);
+                     continue;
+                 }
+@@ -1468,12 +1468,9 @@
+ 
+             for (int i = 0; i < inst->numDestRegs(); i++) {
+                 //mark as Ready
+-                DPRINTF(IEW,"Setting Destination Register %i and count %d\n",
+-                        (inst->renamedDestRegIdx(i).first), (inst->renamedDestRegIdx(i).second));
+-                scoreboard->setReg((inst->renamedDestRegIdx(i).first)*4 +(inst->renamedDestRegIdx(i).second));
+-		 DPRINTF(IEW,"getting Destination Register version scoreboard value %i\n",
+-                        scoreboard->getReg((inst->renamedDestRegIdx(i).first)*4 +(inst->renamedDestRegIdx(i).second)));
+-
++                DPRINTF(IEW,"Setting Destination Register %i\n",
++                        inst->renamedDestRegIdx(i));
++                scoreboard->setReg(inst->renamedDestRegIdx(i));
+             }
+ 
+             if (dependents) {
+@@ -1568,7 +1565,7 @@
+ 
+         if (fromCommit->commitInfo[tid].nonSpecSeqNum != 0) {
+ 
+-            DPRINTF(IEW,"NonspecInst from thread %i",tid);
++            //DPRINTF(IEW,"NonspecInst from thread %i",tid);
+             if (fromCommit->commitInfo[tid].uncached) {
+                 instQueue.replayMemInst(fromCommit->commitInfo[tid].uncachedLoad);
+                 fromCommit->commitInfo[tid].uncachedLoad->setAtCommit();
+diff -u ./src/cpu/o3/inst_queue.hh ./../gem5_new/src/cpu/o3/inst_queue.hh
+--- ./src/cpu/o3/inst_queue.hh	2018-11-26 11:33:06.928946234 -0500
++++ ./../gem5_new/src/cpu/o3/inst_queue.hh	2018-10-09 09:54:01.107212072 -0400
+@@ -92,7 +92,7 @@
+ 
+     // Typedef of iterator through the list of instructions.
+     typedef typename std::list<DynInstPtr>::iterator ListIt;
+-    typedef std::pair<PhysRegIndex,int>VersionInfo;
++
+     /** FU completion event class. */
+     class FUCompletion : public Event {
+       private:
+Only in ./src/cpu/o3: .inst_queue.hh.swp
+diff -u ./src/cpu/o3/inst_queue_impl.hh ./../gem5_new/src/cpu/o3/inst_queue_impl.hh
+--- ./src/cpu/o3/inst_queue_impl.hh	2018-12-01 12:36:32.441409499 -0500
++++ ./../gem5_new/src/cpu/o3/inst_queue_impl.hh	2018-10-09 09:54:01.115212494 -0400
+@@ -102,12 +102,10 @@
+ 
+     //Create an entry for each physical register within the
+     //dependency graph.
+-    //dependGraph.resize(numPhysRegs);
+-    dependGraph.resize(numPhysRegs*4);//Amogh and Raunaq
++    dependGraph.resize(numPhysRegs);
+ 
+     // Resize the register scoreboard.
+-    //regScoreboard.resize(numPhysRegs);
+-    regScoreboard.resize(numPhysRegs*4); //Amogh and Raunaq
++    regScoreboard.resize(numPhysRegs);
+ 
+     //Initialize Mem Dependence Units
+     for (ThreadID tid = 0; tid < numThreads; tid++) {
+@@ -980,26 +978,24 @@
+          dest_reg_idx < completed_inst->numDestRegs();
+          dest_reg_idx++)
+     {
+-       // PhysRegIndex dest_reg =
+-         //   completed_inst->renamedDestRegIdx(dest_reg_idx);
+-       VersionInfo dest_version = completed_inst->renamedDestRegIdx(dest_reg_idx); //Amogh and Raunaq
+-
++        PhysRegIndex dest_reg =
++            completed_inst->renamedDestRegIdx(dest_reg_idx);
+ 
+         // Special case of uniq or control registers.  They are not
+         // handled by the IQ and thus have no dependency graph entry.
+         // @todo Figure out a cleaner way to handle this.
+-        if (dest_version.first >= numPhysRegs) {
+-            DPRINTF(IQ, "dest_reg :%d, numPhysRegs: %d\n", dest_version.first,
++        if (dest_reg >= numPhysRegs) {
++            DPRINTF(IQ, "dest_reg :%d, numPhysRegs: %d\n", dest_reg,
+                     numPhysRegs);
+             continue;
+         }
+ 
+         DPRINTF(IQ, "Waking any dependents on register %i.\n",
+-                (int) dest_version.first);
++                (int) dest_reg);
+ 
+         //Go through the dependency chain, marking the registers as
+         //ready within the waiting instructions.
+-        DynInstPtr dep_inst = dependGraph.pop(dest_version);
++        DynInstPtr dep_inst = dependGraph.pop(dest_reg);
+ 
+         while (dep_inst) {
+             DPRINTF(IQ, "Waking up a dependent instruction, [sn:%lli] "
+@@ -1013,18 +1009,18 @@
+ 
+             addIfReady(dep_inst);
+ 
+-            dep_inst = dependGraph.pop(dest_version);
++            dep_inst = dependGraph.pop(dest_reg);
+ 
+             ++dependents;
+         }
+ 
+         // Reset the head node now that all of its dependents have
+         // been woken up.
+-        assert(dependGraph.empty(dest_version));
+-        dependGraph.clearInst(dest_version);
++        assert(dependGraph.empty(dest_reg));
++        dependGraph.clearInst(dest_reg);
+ 
+         // Mark the scoreboard as having that register ready.
+-        regScoreboard[dest_version.first*4+dest_version.second] = true;
++        regScoreboard[dest_reg] = true;
+     }
+     return dependents;
+ }
+@@ -1185,12 +1181,8 @@
+                      src_reg_idx < squashed_inst->numSrcRegs();
+                      src_reg_idx++)
+                 {
+-                    //PhysRegIndex src_reg =
+-                      //  squashed_inst->renamedSrcRegIdx(src_reg_idx);
+-   
+-                    VersionInfo src_version =
+-                        squashed_inst->renamedSrcRegIdx(src_reg_idx);//Amogh and Raunaq
+-
++                    PhysRegIndex src_reg =
++                        squashed_inst->renamedSrcRegIdx(src_reg_idx);
+ 
+                     // Only remove it from the dependency graph if it
+                     // was placed there in the first place.
+@@ -1202,8 +1194,8 @@
+                     // leaves more room for error.
+ 
+                     if (!squashed_inst->isReadySrcRegIdx(src_reg_idx) &&
+-                        src_version.first < numPhysRegs) {
+-                        dependGraph.remove(src_version, squashed_inst);
++                        src_reg < numPhysRegs) {
++                        dependGraph.remove(src_reg, squashed_inst);
+                     }
+ 
+ 
+@@ -1263,22 +1255,20 @@
+     {
+         // Only add it to the dependency graph if it's not ready.
+         if (!new_inst->isReadySrcRegIdx(src_reg_idx)) {
+-            //PhysRegIndex src_reg = new_inst->renamedSrcRegIdx(src_reg_idx);
+-            VersionInfo src_version = new_inst->renamedSrcRegIdx(src_reg_idx); //Amogh and Raunaq
+-
++            PhysRegIndex src_reg = new_inst->renamedSrcRegIdx(src_reg_idx);
+ 
+             // Check the IQ's scoreboard to make sure the register
+             // hasn't become ready while the instruction was in flight
+             // between stages.  Only if it really isn't ready should
+             // it be added to the dependency graph.
+-            if (src_version.first >= numPhysRegs) {
++            if (src_reg >= numPhysRegs) {
+                 continue;
+-            } else if (regScoreboard[src_version.first*4+src_version.second] == false) {
++            } else if (regScoreboard[src_reg] == false) {
+                 DPRINTF(IQ, "Instruction PC %s has src reg %i that "
+                         "is being added to the dependency chain.\n",
+-                        new_inst->pcState(), src_version.first);
++                        new_inst->pcState(), src_reg);
+ 
+-                dependGraph.insert(src_version, new_inst);
++                dependGraph.insert(src_reg, new_inst);
+ 
+                 // Change the return value to indicate that something
+                 // was added to the dependency graph.
+@@ -1286,7 +1276,7 @@
+             } else {
+                 DPRINTF(IQ, "Instruction PC %s has src reg %i that "
+                         "became ready before it reached the IQ.\n",
+-                        new_inst->pcState(), src_version.first);
++                        new_inst->pcState(), src_reg);
+                 // Mark a register ready within the instruction.
+                 new_inst->markSrcRegReady(src_reg_idx);
+             }
+@@ -1310,26 +1300,25 @@
+          dest_reg_idx < total_dest_regs;
+          dest_reg_idx++)
+     {
+-        //PhysRegIndex dest_reg = new_inst->renamedDestRegIdx(dest_reg_idx);
+-        VersionInfo dest_version = new_inst->renamedDestRegIdx(dest_reg_idx); //Amogh and Raunaq
++        PhysRegIndex dest_reg = new_inst->renamedDestRegIdx(dest_reg_idx);
+ 
+         // Instructions that use the misc regs will have a reg number
+         // higher than the normal physical registers.  In this case these
+         // registers are not renamed, and there is no need to track
+         // dependencies as these instructions must be executed at commit.
+-        if (dest_version.first >= numPhysRegs) {
++        if (dest_reg >= numPhysRegs) {
+             continue;
+         }
+ 
+-        if (!dependGraph.empty(dest_version)) {
++        if (!dependGraph.empty(dest_reg)) {
+             dependGraph.dump();
+-            panic("Dependency graph %i not empty!", dest_version.first);
++            panic("Dependency graph %i not empty!", dest_reg);
+         }
+ 
+-        dependGraph.setInst(dest_version, new_inst);
++        dependGraph.setInst(dest_reg, new_inst);
+ 
+         // Mark the scoreboard to say it's not yet ready.
+-        regScoreboard[dest_version.first*4+dest_version.second] = false;
++        regScoreboard[dest_reg] = false;
+     }
+ }
+ 
+Only in ./src/cpu/o3: .inst_queue_impl.hh.swo
+Only in ./src/cpu/o3: .inst_queue_impl.hh.swp
+diff -u ./src/cpu/o3/O3CPU.py ./../gem5_new/src/cpu/o3/O3CPU.py
+--- ./src/cpu/o3/O3CPU.py	2018-12-08 13:01:42.927539266 -0500
++++ ./../gem5_new/src/cpu/o3/O3CPU.py	2018-12-08 11:32:27.682510186 -0500
+@@ -45,22 +45,20 @@
+                                    "delay")
+     commitToFetchDelay = Param.Cycles(1, "Commit to fetch delay")
+     fetchWidth = Param.Unsigned(8, "Fetch width")
+-    #fetchWidth = Param.Unsigned(4, "Fetch width")
+ 
+     renameToDecodeDelay = Param.Cycles(1, "Rename to decode delay")
+     iewToDecodeDelay = Param.Cycles(1, "Issue/Execute/Writeback to decode "
+                                     "delay")
+     commitToDecodeDelay = Param.Cycles(1, "Commit to decode delay")
+     fetchToDecodeDelay = Param.Cycles(1, "Fetch to decode delay")
++    #decodeWidth = Param.Unsigned(8, "Decode width")
+     decodeWidth = Param.Unsigned(3, "Decode width")
+-    #decodeWidth = Param.Unsigned(4, "Decode width")
+ 
+     iewToRenameDelay = Param.Cycles(1, "Issue/Execute/Writeback to rename "
+                                     "delay")
+     commitToRenameDelay = Param.Cycles(1, "Commit to rename delay")
+     decodeToRenameDelay = Param.Cycles(1, "Decode to rename delay")
+     renameWidth = Param.Unsigned(8, "Rename width")
+-    #renameWidth = Param.Unsigned(4, "Rename width")
+ 
+     commitToIEWDelay = Param.Cycles(1, "Commit to "
+                "Issue/Execute/Writeback delay")
+@@ -69,14 +67,9 @@
+     issueToExecuteDelay = Param.Cycles(1, "Issue to execute delay (internal "
+               "to the IEW stage)")
+     dispatchWidth = Param.Unsigned(8, "Dispatch width")
+-    #dispatchWidth = Param.Unsigned(4, "Dispatch width")
+-
++    #issueWidth = Param.Unsigned(8, "Issue width")
+     issueWidth = Param.Unsigned(3, "Issue width")
+-    #issueWidth = Param.Unsigned(4, "Issue width")
+-
+     wbWidth = Param.Unsigned(8, "Writeback width")
+-    #wbWidth = Param.Unsigned(4, "Writeback width")
+-
+     wbDepth = Param.Unsigned(1, "Writeback depth")
+     fuPool = Param.FUPool(DefaultFUPool(), "Functional Unit pool")
+ 
+@@ -84,11 +77,7 @@
+                "delay")
+     renameToROBDelay = Param.Cycles(1, "Rename to reorder buffer delay")
+     commitWidth = Param.Unsigned(8, "Commit width")
+-    #commitWidth = Param.Unsigned(4, "Commit width")
+-
+     squashWidth = Param.Unsigned(8, "Squash width")
+-    #squashWidth = Param.Unsigned(4, "Squash width")
+-
+     trapLatency = Param.Cycles(13, "Trap latency")
+     fetchTrapLatency = Param.Cycles(1, "Fetch trap latency")
+ 
+@@ -105,8 +94,8 @@
+     globalHistoryBits = Param.Unsigned(13, "Bits of history")
+     choicePredictorSize = Param.Unsigned(8192, "Size of choice predictor")
+     choiceCtrBits = Param.Unsigned(2, "Bits of choice counters")
+-
+-    BTBEntries = Param.Unsigned(4096, "Number of BTB entries")
++    BTBEntries = Param.Unsigned(2048, "Number of BTB entries")
++    #BTBEntries = Param.Unsigned(4096, "Number of BTB entries")
+     BTBTagSize = Param.Unsigned(16, "Size of the BTB tags, in bits")
+ 
+     RASSize = Param.Unsigned(16, "RAS size")
+@@ -123,12 +112,19 @@
+ 
+     numRobs = Param.Unsigned(1, "Number of Reorder Buffers");
+ 
++    #numPhysIntRegs = Param.Unsigned(256, "Number of physical integer registers")
++   # numPhysFloatRegs = Param.Unsigned(256, "Number of physical floating point "
++     #                                "registers")
+     numPhysIntRegs = Param.Unsigned(112, "Number of physical integer registers")
+     numPhysFloatRegs = Param.Unsigned(112, "Number of physical floating point "
+                                       "registers")
++
++    #numIQEntries = Param.Unsigned(64, "Number of instruction queue entries")
++    #numROBEntries = Param.Unsigned(192, "Number of reorder buffer entries")
+     numIQEntries = Param.Unsigned(40, "Number of instruction queue entries")
+     numROBEntries = Param.Unsigned(128, "Number of reorder buffer entries")
+ 
++
+     instShiftAmt = Param.Unsigned(2, "Number of bits to shift instructions by")
+ 
+     smtNumFetchingThreads = Param.Unsigned(1, "SMT Number of Fetching Threads")
+Binary files ./src/cpu/o3/.O3CPU.py.swp and ./../gem5_new/src/cpu/o3/.O3CPU.py.swp differ
+Only in ./src/cpu/o3: op_Fetch
+Only in ./src/cpu/o3: prt.cc
+Only in ./src/cpu/o3: .prt.cc.swp
+Only in ./src/cpu/o3: prt.hh
+diff -u ./src/cpu/o3/regfile.hh ./../gem5_new/src/cpu/o3/regfile.hh
+--- ./src/cpu/o3/regfile.hh	2018-12-03 15:50:50.437826971 -0500
++++ ./../gem5_new/src/cpu/o3/regfile.hh	2018-10-09 09:54:01.194216669 -0400
+@@ -54,6 +54,7 @@
+     typedef TheISA::IntReg IntReg;
+     typedef TheISA::FloatReg FloatReg;
+     typedef TheISA::FloatRegBits FloatRegBits;
++
+     typedef union {
+         FloatReg d;
+         FloatRegBits q;
+@@ -66,7 +67,7 @@
+     // be private eventually with some accessor functions.
+   public:
+     typedef typename Impl::O3CPU O3CPU;
+-    typedef std::pair<PhysRegIndex, int> Phy_Reg_Version; //Raunaq and Amogh
++
+     /**
+      * Constructs a physical register file with the specified amount of
+      * integer and floating point registers.
+@@ -85,28 +86,17 @@
+     //different ways to access certain registers.
+ 
+     /** Reads an integer register. */
+- /*   uint64_t readIntReg(PhysRegIndex reg_idx)
++    uint64_t readIntReg(PhysRegIndex reg_idx)
+     {
+         assert(reg_idx < numPhysicalIntRegs);
+ 
+         DPRINTF(IEW, "RegFile: Access to int register %i, has data "
+                 "%#x\n", int(reg_idx), intRegFile[reg_idx]);
+         return intRegFile[reg_idx];
+-    }*/
+-    
+-    //Reads an integer register with version; Amogh and Raunaq
+-	uint64_t readIntReg(Phy_Reg_Version reg_ver_idx)
+-    {
+-        assert(reg_ver_idx.first < numPhysicalIntRegs);
+-
+-        DPRINTF(IEW, "RegFile: Access to int register %i, has data "
+-                "%#x\n", int(reg_ver_idx.first), intRegFile[reg_ver_idx.first*4+reg_ver_idx.second]);
+-	
+-        return intRegFile[reg_ver_idx.first*4+reg_ver_idx.second];
+     }
+ 
+     /** Reads a floating point register (double precision). */
+- /*   FloatReg readFloatReg(PhysRegIndex reg_idx)
++    FloatReg readFloatReg(PhysRegIndex reg_idx)
+     {
+         // Remove the base Float reg dependency.
+         reg_idx = reg_idx - numPhysicalIntRegs;
+@@ -119,21 +109,9 @@
+                 "data %#x\n", int(reg_idx), floatRegFile[reg_idx].q);
+ 
+         return floatReg;
+-    }*/
+-  
+-    //Reads an float register with version; Amogh and Raunaq
+-	FloatReg readFloatReg(Phy_Reg_Version reg_ver_idx)
+-    {
+-        assert(reg_ver_idx.first < numPhysicalFloatRegs + numPhysicalIntRegs);
+-	 FloatReg floatReg = floatRegFile[reg_ver_idx.first*4+reg_ver_idx.second].d;
+-
+-        DPRINTF(IEW, "RegFile: Access to int register %i, has data "
+-                "%#x\n", int(reg_ver_idx.first), floatRegFile[reg_ver_idx.first*4+reg_ver_idx.second].d);
+-        return floatReg;
+     }
+ 
+-
+-  /*  FloatRegBits readFloatRegBits(PhysRegIndex reg_idx)
++    FloatRegBits readFloatRegBits(PhysRegIndex reg_idx)
+     {
+         // Remove the base Float reg dependency.
+         reg_idx = reg_idx - numPhysicalIntRegs;
+@@ -146,24 +124,10 @@
+                 "has data %#x\n", int(reg_idx), (uint64_t)floatRegBits);
+ 
+         return floatRegBits;
+-    }*/
+-   //Reads an float register with version; Amogh and Raunaq
+-	uint64_t readFloatRegBits(Phy_Reg_Version reg_ver_idx)
+-    {
+-        // Remove the base Float reg dependency.
+-        reg_ver_idx.first = reg_ver_idx.first - numPhysicalIntRegs;
+-
+-        assert(reg_ver_idx.first < numPhysicalFloatRegs + numPhysicalIntRegs);
+-	 FloatReg floatRegBits = floatRegFile[reg_ver_idx.first*4+reg_ver_idx.second].q;
+-
+-        DPRINTF(IEW, "RegFile: Access to int register %i, has data "
+-                "%#x\n", int(reg_ver_idx.first),(uint64_t)floatRegBits);
+-         return floatRegBits;
+     }
+ 
+-
+     /** Sets an integer register to the given value. */
+- /*   void setIntReg(PhysRegIndex reg_idx, uint64_t val)
++    void setIntReg(PhysRegIndex reg_idx, uint64_t val)
+     {
+         assert(reg_idx < numPhysicalIntRegs);
+ 
+@@ -172,23 +136,10 @@
+ 
+         if (reg_idx != TheISA::ZeroReg)
+             intRegFile[reg_idx] = val;
+-    }*/
+-//Amogh and Raunaq
+- /** Sets an integer register to the given value. */
+-    void setIntReg(Phy_Reg_Version reg_ver_idx, uint64_t val)
+-    {
+-        assert(reg_ver_idx.first < numPhysicalIntRegs);
+-
+-        DPRINTF(IEW, "RegFile: Setting int register %i to %#x\n",
+-                int(reg_ver_idx.first), val);
+-
+-        if (reg_ver_idx.first != TheISA::ZeroReg)
+-            intRegFile[reg_ver_idx.first*4+reg_ver_idx.second] = val;
+     }
+ 
+-
+     /** Sets a double precision floating point register to the given value. */
+-  /*  void setFloatReg(PhysRegIndex reg_idx, FloatReg val)
++    void setFloatReg(PhysRegIndex reg_idx, FloatReg val)
+     {
+         // Remove the base Float reg dependency.
+         reg_idx = reg_idx - numPhysicalIntRegs;
+@@ -202,24 +153,9 @@
+         if (reg_idx != TheISA::ZeroReg)
+ #endif
+             floatRegFile[reg_idx].d = val;
+-    }*/
+-
+-    //Amogh and Raunaq
+- /** Sets an integer register to the given value. */
+-  void setFloatReg(Phy_Reg_Version reg_ver_idx, uint64_t val)
+-    {
+-        assert(reg_ver_idx.first < numPhysicalFloatRegs);
+-
+-        DPRINTF(IEW, "RegFile: Setting int register %i to %#x\n",
+-                int(reg_ver_idx.first), (uint64_t)val);
+-#if THE_ISA == ALPHA_ISA
+-        if (reg_ver_idx.first != TheISA::ZeroReg)
+- #endif
+-           floatRegFile[reg_ver_idx.first*4+reg_ver_idx.second].d = val;
+     }
+ 
+-
+- /*   void setFloatRegBits(PhysRegIndex reg_idx, FloatRegBits val)
++    void setFloatRegBits(PhysRegIndex reg_idx, FloatRegBits val)
+     {
+         // Remove the base Float reg dependency.
+         reg_idx = reg_idx - numPhysicalIntRegs;
+@@ -230,23 +166,8 @@
+                 int(reg_idx), (uint64_t)val);
+ 
+         floatRegFile[reg_idx].q = val;
+-    }*/
+-  
+-   void setFloatRegBits(Phy_Reg_Version reg_ver_idx, FloatRegBits val)
+-    {
+-        // Remove the base Float reg dependency.
+-        reg_ver_idx.first = reg_ver_idx.first - numPhysicalIntRegs;
+-
+-        assert(reg_ver_idx.first < numPhysicalFloatRegs);
+-
+-        DPRINTF(IEW, "RegFile: Setting float register %i to %#x\n",
+-                int(reg_ver_idx.first), (uint64_t)val);
+-
+-        floatRegFile[reg_ver_idx.first*4+reg_ver_idx.second].q = val;
+     }
+ 
+-    
+-
+   public:
+     /** (signed) integer register file. */
+     IntReg *intRegFile;
+@@ -274,19 +195,11 @@
+     : cpu(_cpu), numPhysicalIntRegs(_numPhysicalIntRegs),
+       numPhysicalFloatRegs(_numPhysicalFloatRegs)
+ {
+-    //intRegFile = new IntReg[numPhysicalIntRegs];
+-    //floatRegFile = new PhysFloatReg[numPhysicalFloatRegs];
+-    
+-    intRegFile = new IntReg[numPhysicalIntRegs*4];           // Amogh and Raunaq
+-    floatRegFile = new PhysFloatReg[numPhysicalFloatRegs*4]; //Amogh and Raunaq
+-
+-
+-    //memset(intRegFile, 0, sizeof(IntReg) * numPhysicalIntRegs);
+-    //memset(floatRegFile, 0, sizeof(PhysFloatReg) * numPhysicalFloatRegs);
+-
+-    memset(intRegFile, 0, sizeof(IntReg) * numPhysicalIntRegs*4);//Amogh and Raunaq
+-    memset(floatRegFile, 0, sizeof(PhysFloatReg) * numPhysicalFloatRegs*4);//Amogh and Raunaq
++    intRegFile = new IntReg[numPhysicalIntRegs];
++    floatRegFile = new PhysFloatReg[numPhysicalFloatRegs];
+ 
++    memset(intRegFile, 0, sizeof(IntReg) * numPhysicalIntRegs);
++    memset(floatRegFile, 0, sizeof(PhysFloatReg) * numPhysicalFloatRegs);
+ }
+ 
+ template <class Impl>
+Only in ./src/cpu/o3: .regfile.hh.swo
+Only in ./src/cpu/o3: .regfile.hh.swp
+Only in ./src/cpu/o3: reg_pred.cc
+Only in ./src/cpu/o3: .reg_pred.cc.swp
+Only in ./src/cpu/o3: reg_pred.hh
+Only in ./src/cpu/o3: reg_pred.txt
+diff -u ./src/cpu/o3/rename.hh ./../gem5_new/src/cpu/o3/rename.hh
+--- ./src/cpu/o3/rename.hh	2018-12-05 19:37:28.525234609 -0500
++++ ./../gem5_new/src/cpu/o3/rename.hh	2018-10-09 09:54:01.207217356 -0400
+@@ -36,7 +36,6 @@
+ #include "base/statistics.hh"
+ #include "config/the_isa.hh"
+ #include "cpu/timebuf.hh"
+-//#include "reg_pred.hh"
+ 
+ struct DerivO3CPUParams;
+ 
+@@ -67,20 +66,13 @@
+     typedef typename CPUPol::TimeStruct TimeStruct;
+     typedef typename CPUPol::FreeList FreeList;
+     typedef typename CPUPol::RenameMap RenameMap;
+-    typedef typename CPUPol::PhysicalRegtable PhysicalRegtable; //Amogh and Raunaq
+-    typedef typename CPUPol::RegPredTable RegPredTable; //Amogh and Raunaq predictor
+-   
+     // These are used only for initialization.
+     typedef typename CPUPol::IEW IEW;
+     typedef typename CPUPol::Commit Commit;
+-    typedef typename PhysicalRegtable::VersionInfo VersionInfo; //Amogh and Raunaq
+ 
+     // Typedefs from the ISA.
+     typedef TheISA::RegIndex RegIndex;
+ 
+-    typedef typename RegPredTable::PredictorInfo PredictorInfo; //Amogh and Raunaq predictor
+-    typedef typename RegPredTable::DependencyInfo DependencyInfo; //Amogh and Raunaq predictor
+-
+     // A list is used to queue the instructions.  Barrier insts must
+     // be added to the front of the list, which is the only reason for
+     // using a list instead of a queue. (Most other stages use a
+@@ -162,13 +154,6 @@
+     /** Sets pointer to the free list. */
+     void setFreeList(FreeList *fl_ptr);
+ 
+-     /*modified by Amogh and Raunaq */
+-    /*Sets pointer to the physical reg table */ 
+-    void setPhysicalRegtable(PhysicalRegtable prt_ptr[Impl::MaxThreads]);
+-    
+-    /*modified by Amogh and Raunaq*/
+-    void setPredictortable(RegPredTable regPred_ptr[Impl::MaxThreads]);
+-  
+     /** Sets pointer to the scoreboard. */
+     void setScoreboard(Scoreboard *_scoreboard);
+ 
+@@ -243,15 +228,10 @@
+     void removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid);
+ 
+     /** Renames the source registers of an instruction. */
+-   // inline void renameSrcRegs(DynInstPtr &inst, ThreadID tid);
++    inline void renameSrcRegs(DynInstPtr &inst, ThreadID tid);
+ 
+     /** Renames the destination registers of an instruction. */
+-    //inline void renameDestRegs(DynInstPtr &inst, ThreadID tid); 
+-
+-    /**Modified by Amogh and Raunaq **/
+-    /**merged source and destination renaming function **/
+-    inline void renameSrcandDestRegs(DynInstPtr &inst, ThreadID tid);
+-
++    inline void renameDestRegs(DynInstPtr &inst, ThreadID tid);
+ 
+     /** Calculates the number of free ROB entries for a specific thread. */
+     inline int calcFreeROBEntries(ThreadID tid);
+@@ -290,30 +270,12 @@
+      * the instruction's sequence number, the arch register, the old physical
+      * register for that arch. register, and the new physical register.
+      */
+-   /*struct RenameHistory {
++    struct RenameHistory {
+         RenameHistory(InstSeqNum _instSeqNum, RegIndex _archReg,
+                       PhysRegIndex _newPhysReg, PhysRegIndex _prevPhysReg)
+             : instSeqNum(_instSeqNum), archReg(_archReg),
+               newPhysReg(_newPhysReg), prevPhysReg(_prevPhysReg)
+         {
+-        }*/
+-
+-       /* The sequence number of the instruction that renamed. */
+-        //InstSeqNum instSeqNum;
+-        //** The architectural register index that was renamed. *
+-       // RegIndex archReg;
+-        //** The new physical register that the arch. register is renamed to. *
+-       // PhysRegIndex newPhysReg;
+-        //** The old physical register that the arch. register was renamed to. *
+-     //   PhysRegIndex prevPhysReg;
+-   // };
+-/*modified by Amogh and Raunaq */ 
+- struct RenameHistory {
+-        RenameHistory(InstSeqNum _instSeqNum, RegIndex _archReg,
+-                      VersionInfo _newPhysRegnVersion, VersionInfo _prevPhysRegnVersion)
+-            : instSeqNum(_instSeqNum), archReg(_archReg),
+-              newPhysRegnVersion(_newPhysRegnVersion), prevPhysRegnVersion(_prevPhysRegnVersion)
+-        {
+         }
+ 
+         /** The sequence number of the instruction that renamed. */
+@@ -321,15 +283,11 @@
+         /** The architectural register index that was renamed. */
+         RegIndex archReg;
+         /** The new physical register that the arch. register is renamed to. */
+-        //PhysRegIndex newPhysReg;//modified by Amogh and Raunaq
++        PhysRegIndex newPhysReg;
+         /** The old physical register that the arch. register was renamed to. */
+-       // PhysRegIndex prevPhysReg;//modified by Amogh and Raunaq
+-        VersionInfo newPhysRegnVersion;//modified by Amogh and Raunaq
+-	VersionInfo prevPhysRegnVersion;//modified by Amogh and Raunaq
+-
++        PhysRegIndex prevPhysReg;
+     };
+ 
+-
+     /** A per-thread list of all destination register renames, used to either
+      * undo rename mappings or free old physical registers.
+      */
+@@ -374,24 +332,6 @@
+     /** Free list interface. */
+     FreeList *freeList;
+ 
+-
+-    /**Modified by Raunaq and Amogh **/
+-    /** PRT interface**/
+-    PhysicalRegtable *physicalRegtable[Impl::MaxThreads];
+-
+-    /**Modified by Raunaq and Amogh predictor **/
+-    /** PRT interface**/
+-    RegPredTable *regpredtable[Impl::MaxThreads];
+-
+-    //Amogh and Raunaq predictor
+-    int hit_count;
+-    int mis_count;
+-    int newPhyReg_count;
+-    float hit_ratio;
+-    float mis_ratio;
+-    int num_committed;
+-    int num_new_committed;
+-
+     /** Pointer to the list of active threads. */
+     std::list<ThreadID> *activeThreads;
+ 
+@@ -542,12 +482,6 @@
+     Stats::Scalar renamedTempSerializing;
+     /** Number of instructions inserted into skid buffers. */
+     Stats::Scalar renameSkidInsts;
+-
+-    //Amogh and Raunaq predictor
+-    /** Stat for hit rate. */
+-    Stats::Scalar hitrate;
+-    /** Stat for mis rate. */
+-    Stats::Scalar misrate;
+ };
+ 
+ #endif // __CPU_O3_RENAME_HH__
+diff -u ./src/cpu/o3/rename_impl.hh ./../gem5_new/src/cpu/o3/rename_impl.hh
+--- ./src/cpu/o3/rename_impl.hh	2018-12-07 03:17:48.574868358 -0500
++++ ./../gem5_new/src/cpu/o3/rename_impl.hh	2018-12-01 18:35:12.703931667 -0500
+@@ -42,7 +42,6 @@
+  */
+ 
+ #include <list>
+-#include <cmath>
+ 
+ #include "arch/isa_traits.hh"
+ #include "arch/registers.hh"
+@@ -66,11 +65,6 @@
+       resumeUnblocking(false),
+       numThreads(params->numThreads),
+       maxPhysicalRegs(params->numPhysIntRegs + params->numPhysFloatRegs)
+-      /*hit_count(0),
+-      mis_count(0),
+-      hit_ratio(0),
+-      mis_ratio(0),
+-      newPhyReg_count(0)*/
+ {
+     _status = Inactive;
+ 
+@@ -90,12 +84,6 @@
+         emptyROB[tid] = true;
+ 
+         serializeOnNextInst[tid] = false;
+-
+-        /*hit_count[tid]=0;
+-        mis_count[tid]=0;
+-        hit_ratio[tid]=0;
+-        mis_ratio[tid]=0;
+-        newPhyReg_count[tid]=0;*/
+     }
+ 
+     // @todo: Make into a parameter.
+@@ -200,16 +188,6 @@
+         .name(name() + ".fp_rename_lookups")
+         .desc("Number of floating rename lookups")
+         .prereq(fpRenameLookups);
+-   //Amogh and Raunaq predictor
+-    hitrate
+-        .name(name() + "hitrate")
+-        .desc("Hit rate for Register predictor")
+-        .prereq(hitrate);
+-   //Amogh and Raunaq predictor
+-    misrate
+-        .name(name() + "misrate")
+-        .desc("Mis rate for Register predictor")
+-        .prereq(misrate);
+ }
+ 
+ template <class Impl>
+@@ -283,24 +261,6 @@
+ {
+     freeList = fl_ptr;
+ }
+-/**modified by Amogh and Raunaq **/
+-template <class Impl>
+-void
+-DefaultRename<Impl>::setPhysicalRegtable(PhysicalRegtable prt_ptr[])
+-{
+-    for (ThreadID tid = 0; tid < numThreads; tid++)
+-        physicalRegtable[tid] = &prt_ptr[tid];
+-}
+-
+-/**modified by Amogh and Raunaq predictor**/
+-template <class Impl>
+-void
+-DefaultRename<Impl>::setPredictortable(RegPredTable regPred_ptr[])
+-{
+-    for (ThreadID tid = 0; tid < numThreads; tid++)
+-        regpredtable[tid] = &regPred_ptr[tid];
+-}
+-
+ 
+ template<class Impl>
+ void
+@@ -335,32 +295,16 @@
+ 
+             // Tell the rename map to set the architected register to the
+             // previous physical register that it was renamed to.
+-           // renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
+-	     renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysRegnVersion); //Amogh and Raunaq
++            renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
+ 
+             // Put the renamed physical register back on the free list.
+-           // freeList->addReg(hb_it->newPhysReg);
+-            // Put the renamed physical register back on the free list if the phy_reg old is diff than the new one else we need to decrement the count of the value
+-            if(hb_it->prevPhysRegnVersion.first != hb_it->newPhysRegnVersion.first)
+-            {freeList->addReg(hb_it->newPhysRegnVersion.first);
+-	     physicalRegtable[tid]->setPRTEntry(hb_it->newPhysRegnVersion.first,0,1,1);}
+-
+-	    else
+-	    physicalRegtable[tid]->setPRTEntry(hb_it->prevPhysRegnVersion.first,0,1,1);
+-
+-
++            freeList->addReg(hb_it->newPhysReg);
+ 
+             // Be sure to mark its register as ready if it's a misc register.
+-           /* if (hb_it->newPhysReg >= maxPhysicalRegs) {
++            if (hb_it->newPhysReg >= maxPhysicalRegs) {
+                 scoreboard->setReg(hb_it->newPhysReg);
+-            }*/
+- if (hb_it->newPhysRegnVersion.first >= maxPhysicalRegs) {
+-                scoreboard->setReg((hb_it->newPhysRegnVersion.first)*4+(hb_it->newPhysRegnVersion.second));//modified by Amogh and Raunaq
+-                //scoreboard->setReg(hb_it->newPhysRegnVersion);//modified by Amogh and Raunaq
+-
+             }
+ 
+-
+             historyBuffer[tid].erase(hb_it++);
+         }
+         insts[tid].clear();
+@@ -491,7 +435,7 @@
+         if (fromCommit->commitInfo[tid].doneSeqNum != 0 &&
+             !fromCommit->commitInfo[tid].squash &&
+             renameStatus[tid] != Squashing) {
+-             DPRINTF(Rename, "[tid:%u]: Removing a committed instruction from the "
++		DPRINTF(Rename, "[tid:%u]: Removing a committed instruction from the "
+             "history buffer %u (size=%i), until [sn:%lli] by calling removeHistory funciton.\n",
+             tid, tid, historyBuffer[tid].size(), fromCommit->commitInfo[tid].doneSeqNum);
+ 
+@@ -744,12 +688,9 @@
+             break;
+         }
+ 
+-      //  renameSrcRegs(inst, inst->threadNumber);
+-
+-        //renameDestRegs(inst, inst->threadNumber);
+-	renameSrcandDestRegs(inst, inst->threadNumber);
+-
++        renameSrcRegs(inst, inst->threadNumber);
+ 
++        renameDestRegs(inst, inst->threadNumber);
+ 
+         ++renamed_insts;
+ 
+@@ -793,9 +734,6 @@
+ DefaultRename<Impl>::skidInsert(ThreadID tid)
+ {
+     DynInstPtr inst = NULL;
+-    DPRINTF(Rename, "[tid:%u]: getting in skidInsert fn", tid);
+-
+-
+ 
+     while (!insts[tid].empty()) {
+         inst = insts[tid].front();
+@@ -972,37 +910,16 @@
+ 
+         // Tell the rename map to set the architected register to the
+         // previous physical register that it was renamed to.
+-        //renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
+-       renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysRegnVersion);
+-/*modified by Amogh and Raunaq */
+-
++        renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
+ 
+         // Put the renamed physical register back on the free list.
+-        //freeList->addReg(hb_it->newPhysReg);
+-
+-/*modified by Amogh and Raunaq */
+-/*roll back to the history of the version regsiter. Put the physical reg back in the free list if that is different than the prev one */
+-        // Put the renamed physical register back on the free list.
+-        if(hb_it->prevPhysRegnVersion.first != hb_it->newPhysRegnVersion.first)
+-        {freeList->addReg(hb_it->newPhysRegnVersion.first);
+-	  physicalRegtable[tid]->setPRTEntry(hb_it->newPhysRegnVersion.first,0,1,1);
+-
+-		}
+-	else
+-	 physicalRegtable[tid]->setPRTEntry(hb_it->newPhysRegnVersion.first,0,1,1);
++        freeList->addReg(hb_it->newPhysReg);
+ 
+         // Be sure to mark its register as ready if it's a misc register.
+-       /*if (hb_it->newPhysReg >= maxPhysicalRegs) {
++        if (hb_it->newPhysReg >= maxPhysicalRegs) {
+             scoreboard->setReg(hb_it->newPhysReg);
+-        }*/
+- // Be sure to mark its register as ready if it's a misc register. AMogh and Raunaq
+-        if (hb_it->newPhysRegnVersion.first >= maxPhysicalRegs) {
+-             scoreboard->setReg((hb_it->newPhysRegnVersion.first)*4+(hb_it->newPhysRegnVersion.second));//modified by Amogh and Raunaq
+-            //scoreboard->setReg(hb_it->newPhysRegnVersion);
+-
+         }
+ 
+-
+         historyBuffer[tid].erase(hb_it++);
+ 
+         ++renameUndoneMaps;
+@@ -1021,14 +938,13 @@
+         historyBuffer[tid].end();
+ 
+     --hb_it;
+-DPRINTF(Rename, "[tid:%u]: Deleted till this seq num [sn:%lli] and in hb it is [sn:%lli].\n", tid, inst_seq_num, hb_it->instSeqNum);
+ 
+     if (historyBuffer[tid].empty()) {
+         DPRINTF(Rename, "[tid:%u]: History buffer is empty.\n", tid);
+         return;
+     } else if (hb_it->instSeqNum > inst_seq_num) {
+-        DPRINTF(Rename, "[tid:%u]: Old sequence number with number [sn:%lli] encountered and the new one is [sn:%lli].  Ensure "
+-                "that a syscall happened recently.\n", tid, inst_seq_num, hb_it->instSeqNum);
++        DPRINTF(Rename, "[tid:%u]: Old sequence number encountered.  Ensure "
++                "that a syscall happened recently.\n", tid);
+         return;
+     }
+ 
+@@ -1040,76 +956,18 @@
+            hb_it != historyBuffer[tid].end() &&
+            (*hb_it).instSeqNum <= inst_seq_num) {
+ 
+-       /* DPRINTF(Rename, "[tid:%u]: Freeing up older rename of reg %i, "
++        DPRINTF(Rename, "[tid:%u]: Freeing up older rename of reg %i, "
+                 "[sn:%lli].\n",
+                 tid, (*hb_it).prevPhysReg, (*hb_it).instSeqNum);
+ 
+-        freeList->addReg((*hb_it).prevPhysReg);*/
+-/* Amogh and Raunaq */
+- DPRINTF(Rename, "[tid:%u]: Freeing up older rename of reg %i, "
+-                "[sn:%lli].\n",
+-                tid, (*hb_it).prevPhysRegnVersion.first, (*hb_it).instSeqNum);
+-
+-        freeList->addReg((*hb_it).prevPhysRegnVersion.first);
+-        
+-        //Amogh and Raunaq predictor
+-        DependencyInfo pred_and_actual = regpredtable[tid]->getDependency((*hb_it).prevPhysRegnVersion.first);
+-        DPRINTF(Rename,"[tid:%u] Check for misprediction : ShadowCell = %d Actual Required = %d for physical reg %i [sn:%lli]\n",
+-                        tid, pred_and_actual.first, pred_and_actual.second, (*hb_it).prevPhysRegnVersion.first, (*hb_it).instSeqNum);
+-        if(pred_and_actual.first==pred_and_actual.second){
+-          //DPRINTF(Rename,"Hit count = %d\n",hit_count);
+-          hit_count++;
+-          num_committed++;
+-          num_new_committed++;
+-          DPRINTF(Rename,"[tid:%u] Perfectly predicted : ShadowCell = %d Actual Required = %d for physical reg %i [sn:%lli]\n",
+-                        tid, pred_and_actual.first, pred_and_actual.second, (*hb_it).prevPhysRegnVersion.first, (*hb_it).instSeqNum);
+-        }
+-        else{ 
+-          if(pred_and_actual.first==-1){
+-            num_committed++;
+-            DPRINTF(Rename,"This phy reg %i is the previous value. Dont calculate the hit rate\n",(*hb_it).prevPhysRegnVersion.first);
+-          }
+-          else{
+-            num_committed++;
+-            num_new_committed++;
+-            int diff_in_pred = pred_and_actual.first-pred_and_actual.second;
+-            if(diff_in_pred>0){
+-              PredictorInfo updated = regpredtable[tid]->updateRegPredictorEntry((*hb_it).prevPhysRegnVersion.first, 1, diff_in_pred);
+-              DPRINTF(Rename,"[tid:%u] Mispredicted : difference is %d ; ShadowCell = %d Actual Required = %d for physical reg %i [sn:%lli]\n",
+-                          tid, diff_in_pred, pred_and_actual.first, pred_and_actual.second, (*hb_it).prevPhysRegnVersion.first, (*hb_it).instSeqNum);
+-              DPRINTF(Rename,"[tid:%u] Updated in case1 : ShadowCellUpdatedto = %d for physical reg %i [sn:%lli]\n",
+-                          tid, updated.second, updated.first, (*hb_it).instSeqNum);
+-            }
+-            else{
+-              PredictorInfo updated = regpredtable[tid]->updateRegPredictorEntry((*hb_it).prevPhysRegnVersion.first, 0, std::abs(diff_in_pred));
+-              DPRINTF(Rename,"[tid:%u] Mispredicted : difference is %d ShadowCell = %d Actual Required = %d for physical reg %i [sn:%lli]\n",
+-                          tid, diff_in_pred, pred_and_actual.first, pred_and_actual.second, (*hb_it).prevPhysRegnVersion.first, (*hb_it).instSeqNum);
+-              DPRINTF(Rename,"[tid:%u] Updated in case2 : ShadowCellUpdatedto = %d for physical reg %i [sn:%lli]\n",
+-                          tid, updated.second, updated.first, (*hb_it).instSeqNum);
+-            }
+-            mis_count++;
+-            DPRINTF(Rename,"Mis count incremented %d \n",(mis_count-1));
+-          }
+-        }
+-        //hit_count = hit_count-537572504+1;
+-        //num_committed = hit_count-537572504+mis_count;
+-        hit_ratio = (float)(hit_count-537572504)/(num_new_committed-537572848); //(float)(hit_count)/newPhyReg_count;
+-        DPRINTF(Rename,"[tid:%u] Hit rate: %f = %d/%d committed = %d [sn:%lli]\n",
+-                        tid, hit_ratio, (hit_count-537572504), (num_new_committed-537572848), (num_committed-1310723), (*hb_it).instSeqNum);
+-        mis_ratio = (float)(mis_count-1)/(num_new_committed-537572848); //(float)mis_count/newPhyReg_count;
+-        DPRINTF(Rename,"[tid:%u] Miss rate: %f = %d/%d committed = %d [sn:%lli]\n",
+-                        tid, mis_ratio, (mis_count-1), (num_new_committed-537572848),(num_committed-1310723), (*hb_it).instSeqNum);
+-        DPRINTF(Rename,"[tid:%u] Committed instructions = %d [sn:%lli]\n",
+-                        tid, (num_committed-1310723), (*hb_it).instSeqNum);
+-        //Amogh and Raunaq predictor
+-              
++        freeList->addReg((*hb_it).prevPhysReg);
+         ++renameCommittedMaps;
+ 
+         historyBuffer[tid].erase(hb_it--);
+     }
+ }
+ 
+-/*template <class Impl>
++template <class Impl>
+ inline void
+ DefaultRename<Impl>::renameSrcRegs(DynInstPtr &inst, ThreadID tid)
+ {
+@@ -1239,338 +1097,6 @@
+ 
+         ++renameRenamedOperands;
+     }
+-}*/
+-
+-/**Modified by Amogh and Raunaq **/
+-template <class Impl>
+-inline void
+-DefaultRename<Impl>::renameSrcandDestRegs(DynInstPtr &inst, ThreadID tid)
+-{
+- assert(renameMap[tid] != 0);
+-//typename RenameMap::RenameInfo rename_result;
+-typename RenameMap::RenameInfo rename_version_result; //Amogh and Raunaq
+-typename RenameMap::RenameInfo new_rename_version_result; //Amogh and Raunaq
+-typename RenameMap::RenameInfo new_single_rename_version_result; //Amogh and Raunaq
+-
+-
+-VersionInfo renamed_version_reg;
+-VersionInfo old_version_reg;
+-VersionInfo src_ver_reg; //Amogh and Raunaq
+-
+-//PhysRegIndex renamed_reg;//Amogh and Raunaq
+-  unsigned num_src_regs = inst->numSrcRegs();
+-  unsigned num_dest_regs = inst->numDestRegs();
+- RegIndex src_reg_Arr[num_src_regs];
+-
+-  // we anyways have to look for source register renaming map. If destination reg is same as source reg then phy reg of src will be allocated to dest reg but with diff version
+-  for (int src_idx = 0; src_idx < num_src_regs; src_idx++) {
+-        RegIndex src_reg = inst->srcRegIdx(src_idx);
+-	src_reg_Arr[src_idx] = src_reg;
+-        RegIndex flat_src_reg = src_reg;
+-        if (src_reg < TheISA::FP_Base_DepTag) {
+-            flat_src_reg = inst->tcBase()->flattenIntIndex(src_reg);
+-            DPRINTF(Rename, "Flattening index int %d to %d.\n",
+-                    (int)src_reg, (int)flat_src_reg);
+-        } else if (src_reg < TheISA::Ctrl_Base_DepTag) {
+-            src_reg = src_reg - TheISA::FP_Base_DepTag;
+-            flat_src_reg = inst->tcBase()->flattenFloatIndex(src_reg);
+-            DPRINTF(Rename, "Flattening index float %d to %d.\n",
+-                    (int)src_reg, (int)flat_src_reg);
+-            flat_src_reg += TheISA::NumIntRegs;
+-        } else if (src_reg < TheISA::Max_DepTag) {
+-            flat_src_reg = src_reg - TheISA::Ctrl_Base_DepTag +
+-                           TheISA::NumFloatRegs + TheISA::NumIntRegs;
+-            DPRINTF(Rename, "Adjusting reg index from %d to %d.\n",
+-                    src_reg, flat_src_reg);
+-        } else {
+-            panic("Reg index is out of bound: %d.", src_reg);
+-        }
+-
+-        // Look up the source registers to get the phys. register they've
+-        // been renamed to, and set the sources to those registers.
+-        //PhysRegIndex renamed_reg = renameMap[tid]->lookup(flat_src_reg);
+-        //renamed_reg = renameMap[tid]->lookup(flat_src_reg);
+-        src_ver_reg = renameMap[tid]->lookup(flat_src_reg);//VersionInfo
+-	DPRINTF(Rename, "[tid:%u]: Looking up arch reg %i, got "
+-                "physical reg %i with count %d.\n", tid, (int)flat_src_reg,
+-                (int)src_ver_reg.first, src_ver_reg.second); //Amogh and Raunaq
+-        
+-        //Amogh and Raunaq predictor
+-        /*if(src_ver_reg.second==0){
+-          newPhyReg_count++;
+-          DPRINTF(Rename,"[tid:%u] New Physical register added : %i phy_count=%d\n",
+-                        tid, src_ver_reg.first, newPhyReg_count);
+-          //Calling the register predictor
+-          PredictorInfo src_pred_val = regpredtable[tid]->setRegPredictorEntry(src_ver_reg.first,inst->instAddr()); //Amogh and Raunaq predictor
+-          DPRINTF(Rename,"[tid:%u] Predictor called : ShadowCell alolotted = %d to register %i. In PredTable for %i\n",
+-                        tid, src_pred_val.second, src_ver_reg.first, src_pred_val.first);
+-        }
+-        else{
+-          DPRINTF(Rename,"[tid:%u] Continuing with same Physical register : %i\n",
+-                        tid, src_ver_reg.first);
+-        }*/
+-                       
+-	/**Modified by Amogh and Raunaq **/
+-	//VersionInfo  renamed_src_version_reg = physicalRegtable[tid]->setPRTEntry(renamed_reg,1,0,0);
+-        VersionInfo  renamed_src_version_reg = physicalRegtable[tid]->setPRTEntry(src_ver_reg.first,1,0,0); //Amogh and Raunaq/
+-
+-
+-       /* DPRINTF(Rename, "[tid:%u]: Looking up arch reg %i, got "
+-                "physical reg %i.\n", tid, (int)flat_src_reg,
+-                (int)renamed_reg);*/
+-	 DPRINTF(Rename, "[tid:%u]: Looking up arch reg %i, got "
+-                "physical reg %i with count %d.\n", tid, (int)flat_src_reg,
+-                (int)renamed_src_version_reg.first, renamed_src_version_reg.second); //Amogh and Raunaq
+-
+-
+-        //inst->renameSrcReg(src_idx, renamed_reg);
+-	inst->renameSrcReg(src_idx, renamed_src_version_reg);//Amogh and Raunaq
+-
+-        // See if the register is ready or not.
+-        // modified by Amogh and Raunaq
+-        //// if (scoreboard->getReg(/*renamed_src_version_reg*/renamed_reg) == true) 
+-           // DPRINTF(Rename, "[tid:%u]: Register %d is ready.\n",
+-                 //   tid, renamed_reg);
+-	 DPRINTF(Rename, "[tid:%u]: Register %d if ready with count %d with scoreboard value %d.\n",
+-                    tid, src_ver_reg.first, src_ver_reg.second,scoreboard->getReg(src_ver_reg.first*4+src_ver_reg.second) ); //Amogh and Raunaq
+-
+-         if (scoreboard->getReg(src_ver_reg.first*4+src_ver_reg.second) == true) {
+-            DPRINTF(Rename, "[tid:%u]: Register %d is ready.\n",
+-                 tid, src_ver_reg.first);//Amogh and Raunaq
+-
+-       
+-            inst->markSrcRegReady(src_idx);
+-        }
+- else {
+-           /* DPRINTF(Rename, "[tid:%u]: Register %d is not ready.\n",
+-                    tid, renamed_reg);*/
+-	     DPRINTF(Rename, "[tid:%u]: Register %d is not ready.\n",
+-                    tid, src_ver_reg.first); //Amogh and Raunaq
+-
+-        }
+-
+-        ++renameRenameLookups;
+-        inst->isFloating() ? fpRenameLookups++ : intRenameLookups++;
+-    }
+-
+-for (int dest_idx = 0; dest_idx < num_dest_regs; dest_idx++) {
+-        RegIndex dest_reg = inst->destRegIdx(dest_idx);
+-        RegIndex flat_dest_reg = dest_reg;
+-        if (dest_reg < TheISA::FP_Base_DepTag) {
+-            // Integer registers are flattened.
+-            flat_dest_reg = inst->tcBase()->flattenIntIndex(dest_reg);
+-            DPRINTF(Rename, "Flattening index int  %d to %d.\n",
+-                    (int)dest_reg, (int)flat_dest_reg);
+-        } else if (dest_reg < TheISA::Ctrl_Base_DepTag) {
+-            dest_reg = dest_reg - TheISA::FP_Base_DepTag;
+-            flat_dest_reg = inst->tcBase()->flattenFloatIndex(dest_reg);
+-            DPRINTF(Rename, "Flattening index float %d to %d.\n",
+-                    (int)dest_reg, (int)flat_dest_reg);
+-            flat_dest_reg += TheISA::NumIntRegs;
+-        } else if (dest_reg < TheISA::Max_DepTag) {
+-            // Floating point and Miscellaneous registers need their indexes
+-            // adjusted to account for the expanded number of flattened int regs.
+-            flat_dest_reg = dest_reg - TheISA::Ctrl_Base_DepTag +
+-                            TheISA::NumIntRegs + TheISA::NumFloatRegs;
+-            DPRINTF(Rename, "Adjusting reg index from %d to %d.\n",
+-                    dest_reg, flat_dest_reg);
+-        } else {
+-            panic("Reg index is out of bound: %d.", dest_reg);
+-        }
+-
+-        inst->flattenDestReg(dest_idx, flat_dest_reg);
+-	//modified by Amogh and Raunaq
+-	if(dest_reg == src_reg_Arr[dest_idx] || dest_reg == src_reg_Arr[dest_idx+1])
+-       {
+-        //Amogh and Raunaq predictor
+-        DependencyInfo dependency_set = regpredtable[tid]->setDependency(src_ver_reg.first);
+-        DPRINTF(Rename,"[tid:%u] Dependency set : ShadowCell allotted = %d Actual dependency = %d for register %i\n",
+-                       tid, dependency_set.first, dependency_set.second, (int)src_ver_reg.first);
+-
+-	//VersionInfo  renamed_version_reg = physicalRegtable[tid]->setPRTentry(renamed_reg,1,1,0);
+-       	//renamed_version_reg = physicalRegtable[tid]->setPRTEntry(renamed_reg,1,1,0);
+-       
+-        //Amogh and Raunaq predictor
+-        PredictorInfo reg_pred_val = regpredtable[tid]->lookup(src_ver_reg.first);
+-        DPRINTF(Rename,"[tid:%u] Looking up to see the number of ShadowCell : ShadowCell found = %d for register %i\n",
+-                        tid, reg_pred_val.second, (int)reg_pred_val.first);
+-        VersionInfo reg_actual_val = physicalRegtable[tid]->lookup(src_ver_reg.first);
+-  
+-        //Amogh and Raunaq predictor
+-        if(reg_actual_val.second<=reg_pred_val.second){
+-       	  renamed_version_reg = physicalRegtable[tid]->setPRTEntry(src_ver_reg.first,1,1,0); //Amogh and Raunaq
+-          DPRINTF(Rename,"[tid:%u] Can be reused for register %i\n",
+-                          tid, (int)src_ver_reg.first);
+-        }
+-        //Amogh and Raunaq predictor
+-        else {
+-          DPRINTF(Rename,"[tid:%u] Cannot be reused for register %i\n", tid, (int)src_ver_reg.first);
+-          rename_version_result = renameMap[tid]->rename(flat_dest_reg); //<new version,old version>
+-          //renamed_version_reg = renameMap[tid]->rename(flat_dest_reg); //predictor change
+-          //Amogh and Raunaq predictor
+-          newPhyReg_count++;
+-          DPRINTF(Rename,"[tid:%u] New Physical register added : %i phy_count=%d\n",
+-                        tid, (rename_version_result.first).first, newPhyReg_count);
+-          /*DPRINTF(Rename,"[tid:%u] New Physical register added : %i phy_count=%d\n",
+-                        tid, renamed_version_reg.first, newPhyReg_count);*/ //predictor change
+-
+-          PredictorInfo dst_pred_val = regpredtable[tid]->setRegPredictorEntry((rename_version_result.first).first,inst->instAddr());
+-          /*PredictorInfo dst_pred_val = regpredtable[tid]->setRegPredictorEntry(renamed_version_reg.first,inst->instAddr());*///predictor change
+-          DPRINTF(Rename,"[tid:%u] Predictor called : ShadowCell alolotted = %d to register %i. In PredTable for %i\n",
+-                        tid, dst_pred_val.second, (rename_version_result.first).first, dst_pred_val.first); 
+-          /*DPRINTF(Rename,"[tid:%u] Predictor called : ShadowCell alolotted = %d to register %i. In PredTable for %i\n",
+-                        tid, dst_pred_val.second, renamed_version_reg.first, dst_pred_val.first);*///predictor change
+-	}
+-
+-	 /*DPRINTF(Rename, "[tid:%u]: getting arch reg %i to  new  count same physical "
+-                "reg %i, count %i.\n", tid, (int)flat_dest_reg,
+-              (int)renamed_version_reg.first, (int)renamed_version_reg.second);*/ //Amogh and Raunaq
+-	//rename_version_result.first = renamed_version_reg; //Amogh and Raunaq
+-        new_rename_version_result.first = (reg_actual_val.second<=reg_pred_val.second)? renamed_version_reg : rename_version_result.first; //Amogh and Raunaq predictor change
+-        DPRINTF(Rename, "[tid:%u]: getting arch reg %i to  new  count same physical "
+-                "reg %i, count %i.\n", tid, (int)flat_dest_reg,
+-              (int)new_rename_version_result.first.first, (int)new_rename_version_result.first.second);//Amogh and Raunaq predictor change
+-	//VersionInfo  old_version_reg = std::make_pair(renamed_version_reg.first,(renamed_version_reg.second)--);
+-	//old_version_reg = physicalRegtable[tid]->setPRTEntry(renamed_version_reg.first,1,1,1);//Use this
+-        RegIndex old_reg = (reg_actual_val.second<=reg_pred_val.second)? renamed_version_reg.first : rename_version_result.second.first;//Amogh and Raunaq predictor change	
+-        old_version_reg = physicalRegtable[tid]->setPRTEntry(old_reg,1,1,1);//Use this Amogh and Raunaq predictor change
+-          
+-	 DPRINTF(Rename, "[tid:%u]: getting arch reg %i to old count same physical "
+-                "reg %i, count %i.\n", tid, (int)flat_dest_reg,
+-              (int)old_version_reg.first, (int)old_version_reg.second);
+-	//rename_version_result.second = old_version_reg; //Amogh and Raunaq
+-        new_rename_version_result.second = old_version_reg; //Amogh and Raunaq predictor change
+-
+-	//renameMap[tid]->setEntry(dest_reg, rename_version_result.first);
+-	//rename_version_result = renameMap[tid]->rename_single_use(dest_reg, old_version_reg, renamed_version_reg);//Amogh and Raunaq	
+-	new_single_rename_version_result = renameMap[tid]->rename_single_use(dest_reg, old_version_reg,new_rename_version_result.first);//Amogh and Raunaq predictor change
+-
+-	//rename_version_result = renameMap[tid]->rename(flat_dest_reg);//Amogh and Raunaq
+-	 /*DPRINTF(Rename, "[tid:%u]: getting arch reg %i new physical "
+-                "reg %i, old physical reg %i.\n", tid, (int)flat_dest_reg,
+-              (int)rename_result.first, (int)rename_result.second);*/
+-        
+-          //Amogh and Raunaq predictor change
+-          if (dest_reg < TheISA::Ctrl_Base_DepTag){        
+-	  	scoreboard->unsetReg(new_rename_version_result.first.first*4+new_rename_version_result.first.second);//modifed by Amogh and Raunaq
+-		//scoreboard->unsetReg(rename_result.first);//modified by Amogh and Raunaq
+-          }
+-          RenameHistory hb_entry(inst->seqNum, flat_dest_reg,
+-                               new_rename_version_result.first,
+-                               old_version_reg);
+-
+-
+-          historyBuffer[tid].push_front(hb_entry);
+-
+-          DPRINTF(Rename, "[tid:%u]: Adding instruction to history buffer in src=dst case "
+-                "(size=%i), [sn:%lli].\n",tid,
+-                historyBuffer[tid].size(),
+-                (*historyBuffer[tid].begin()).instSeqNum);
+-          inst->renameDestReg(dest_idx,
+-                            new_rename_version_result.first,
+-                            old_version_reg); //Amogh and Raunaq predictor change
+-        ++renameRenamedOperands;
+-	}
+-	else 
+-	{//modified by Amogh and Raunaq
+-        // Get the physical register that the destination will be
+-        // renamed to.
+-
+-        rename_version_result = renameMap[tid]->rename(flat_dest_reg);
+-
+-        //Amogh and Raunaq predictor
+-        newPhyReg_count++;
+-        DPRINTF(Rename,"[tid:%u] New Physical register added : %i phy_count=%d\n",
+-                        tid, (rename_version_result.first).first, newPhyReg_count); 
+-
+-        //Amogh and Raunaq predictor 
+-	//Calling the register predictor
+-        PredictorInfo dst_pred_val = regpredtable[tid]->setRegPredictorEntry((rename_version_result.first).first,inst->instAddr());        
+-        DPRINTF(Rename,"[tid:%u] Predictor called : ShadowCell alolotted = %d to register %i. In PredTable for %i\n",
+-                        tid, dst_pred_val.second, (rename_version_result.first).first, dst_pred_val.first);
+-
+-	//VersionInfo  renamed_version_reg = physicalRegtable[tid]->setPRTentry(rename_result.first,0,1,0);
+-	//renamed_version_reg = physicalRegtable[tid]->setPRTEntry(rename_result.first,0,1,0);
+-	renamed_version_reg = physicalRegtable[tid]->setPRTEntry(((rename_version_result.first).first),0,1,0);//Amogh and Raunaq
+-	rename_version_result = renameMap[tid]->rename_single_use(flat_dest_reg, rename_version_result.second, renamed_version_reg);	
+-	//VersionInfo  old_version_reg = physicalRegtable[tid]->lookup(rename_result.second);
+-	//old_version_reg = physicalRegtable[tid]->lookup(rename_result.second);
+-	old_version_reg = physicalRegtable[tid]->lookup((rename_version_result.second).first); //Amogh and Raunaq
+-
+-/* DPRINTF(Rename, "[tid:%u]: Renaming arch reg %i to physical "
+-                "reg %i.\n", tid, (int)flat_dest_reg,
+-              (int)rename_result.first);*/
+- DPRINTF(Rename, "[tid:%u]: Renaming arch reg %i to physical "
+-                "reg %i.\n", tid, (int)flat_dest_reg,
+-              (int)(rename_version_result.first).first);
+- //Amogh and Raunaq
+-//modified by Amogh and Raunaq. Changed it to renamed_version_reg from rename_result.
+-         
+-          //Amogh and Raunaq predictor change 
+-          if (dest_reg < TheISA::Ctrl_Base_DepTag){        
+-		scoreboard->unsetReg(renamed_version_reg.first*4+renamed_version_reg.second);//modifed by Amogh and Raunaq
+-		//scoreboard->unsetReg(rename_result.first);//modified by Amogh and Raunaq
+-          }
+-          RenameHistory hb_entry(inst->seqNum, flat_dest_reg,
+-                               renamed_version_reg,
+-                               old_version_reg);
+-
+-
+-          historyBuffer[tid].push_front(hb_entry);
+-
+-          DPRINTF(Rename, "[tid:%u]: Adding instruction to history buffer in src!==dst case"
+-                "(size=%i), [sn:%lli].\n",tid,
+-                historyBuffer[tid].size(),
+-                (*historyBuffer[tid].begin()).instSeqNum);
+-          inst->renameDestReg(dest_idx,
+-                            renamed_version_reg,
+-                            old_version_reg); //Amogh and Raunaq
+-          ++renameRenamedOperands;
+-	}
+-
+-        //Mark Scoreboard entry as not ready
+-        /*if (dest_reg < TheISA::Ctrl_Base_DepTag){        
+-		scoreboard->unsetReg(renamed_version_reg.first*4+renamed_version_reg.second);//modifed by Amogh and Raunaq
+-		//scoreboard->unsetReg(rename_result.first);//modified by Amogh and Raunaq
+-        }*/
+-
+-       /* DPRINTF(Rename, "[tid:%u]: Renaming arch reg %i to physical "
+-                "reg %i.\n", tid, (int)flat_dest_reg,
+-              (int)rename_result.first);*///modified by Amogh and Raunaq. Changed it to renamed_version_reg from rename_result.
+-
+-        // Record the rename information so that a history can be kept.
+-       /*RenameHistory hb_entry(inst->seqNum, flat_dest_reg,
+-                               rename_result.first,
+-                               rename_result.second);*//*to be further modified by Amogh and Raunaq. Changed it to renamed_version_reg from rename_result.*/
+-/*RenameHistory hb_entry(inst->seqNum, flat_dest_reg,
+-                               renamed_version_reg,
+-                               old_version_reg);
+-
+-
+-        historyBuffer[tid].push_front(hb_entry);
+-
+-        DPRINTF(Rename, "[tid:%u]: Adding instruction to history buffer "
+-                "(size=%i), [sn:%lli].\n",tid,
+-                historyBuffer[tid].size(),
+-                (*historyBuffer[tid].begin()).instSeqNum);
+-
+-        // Tell the instruction to rename the appropriate destination
+-        // register (dest_idx) to the new physical register
+-        // (rename_result.first), and record the previous physical
+-        // register that the same logical register was renamed to
+-        // (rename_result.second).
+-        //inst->renameDestReg(dest_idx,
+-          //                  rename_result.first,
+-            //                rename_result.second);//modified by Amogh and Raunaq. Changed it to renamed_version_reg from rename_result.
+-
+-       inst->renameDestReg(dest_idx,
+-                            renamed_version_reg,
+-                            old_version_reg); //Amogh and Raunaq
+-        ++renameRenamedOperands;*/
+-    }
+-
+-
+-
+ }
+ 
+ template <class Impl>
+@@ -1862,7 +1388,7 @@
+         while (buf_it != historyBuffer[tid].end()) {
+             cprintf("Seq num: %i\nArch reg: %i New phys reg: %i Old phys "
+                     "reg: %i\n", (*buf_it).instSeqNum, (int)(*buf_it).archReg,
+-                    (int)(*buf_it).newPhysRegnVersion.first, (int)(*buf_it).prevPhysRegnVersion.first);
++                    (int)(*buf_it).newPhysReg, (int)(*buf_it).prevPhysReg);
+ 
+             buf_it++;
+         }
+Only in ./src/cpu/o3: .rename_impl.hh.swo
+Only in ./src/cpu/o3: .rename_impl.hh.swp
+diff -u ./src/cpu/o3/rename_map.cc ./../gem5_new/src/cpu/o3/rename_map.cc
+--- ./src/cpu/o3/rename_map.cc	2018-12-03 18:30:35.706774755 -0500
++++ ./../gem5_new/src/cpu/o3/rename_map.cc	2018-10-09 09:54:01.222218147 -0400
+@@ -94,11 +94,7 @@
+         // physical registers of the same index
+         for (RegIndex index = 0; index < numLogicalIntRegs; ++index)
+         {
+-            //intRenameMap[index].physical_reg = ireg_idx++;
+-             (intRenameMap[index].physical_version).first = ireg_idx++;
+-	      (intRenameMap[index].physical_version).second = 0;//Amogh and Raunaq
+-
+-
++            intRenameMap[index].physical_reg = ireg_idx++;
+         }
+ 
+         // Initialize the entries in the floating point rename map to point to
+@@ -109,34 +105,24 @@
+         for (PhysRegIndex index = numLogicalIntRegs;
+              index < numLogicalRegs; ++index)
+         {
+-            //floatRenameMap[index].physical_reg = freg_idx++;
+-            (floatRenameMap[index].physical_version).first = freg_idx++;
+-	      (floatRenameMap[index].physical_version).second = 0;//Amogh and Raunaq
+-
++            floatRenameMap[index].physical_reg = freg_idx++;
+         }
+     } else {
+         DPRINTF(Rename, "Binding registers into rename map %i\n",id);
+ 
+-        //PhysRegIndex temp_ireg = ireg_idx;
+-        VersionRegIndex temp_iversion = std::make_pair(ireg_idx,0); //Amogh and Raunaq
++        PhysRegIndex temp_ireg = ireg_idx;
++
+         for (RegIndex index = 0; index < numLogicalIntRegs; ++index)
+         {
+-            //intRenameMap[index].physical_reg = temp_ireg++;
+-             (intRenameMap[index].physical_version).first = (temp_iversion.first)++;
+-	      (intRenameMap[index].physical_version).second = 0;//Amogh and Raunaq
+-
++            intRenameMap[index].physical_reg = temp_ireg++;
+         }
+ 
+-        //PhysRegIndex temp_freg = freg_idx;
+-	 VersionRegIndex temp_fversion = std::make_pair(freg_idx,0); //Amogh and Raunaq
++        PhysRegIndex temp_freg = freg_idx;
+ 
+         for (PhysRegIndex index = numLogicalIntRegs;
+              index < numLogicalRegs; ++index)
+         {
+-            //floatRenameMap[index].physical_reg = temp_freg++;
+-            (floatRenameMap[index].physical_version).first = (temp_fversion.first)++;
+-	      (floatRenameMap[index].physical_version).second = 0;//Amogh and Raunaq
+-
++            floatRenameMap[index].physical_reg = temp_freg++;
+         }
+     }
+ }
+@@ -148,7 +134,7 @@
+ }
+ 
+ 
+-/*SimpleRenameMap::RenameInfo
++SimpleRenameMap::RenameInfo
+ SimpleRenameMap::rename(RegIndex arch_reg)
+ {
+     PhysRegIndex renamed_reg;
+@@ -217,81 +203,9 @@
+             arch_reg, renamed_reg, prev_reg);
+ 
+     return RenameInfo(renamed_reg, prev_reg);
+-}*/
+-
+-
+-SimpleRenameMap::RenameInfo
+-SimpleRenameMap::rename(RegIndex arch_reg)
+-{
+-    VersionRegIndex renamed_version;
+-    VersionRegIndex prev_version;
+-
+-    if (arch_reg < numLogicalIntRegs) {
+-
+-        // Record the current physical register that is renamed to the
+-        // requested architected register.
+-        prev_version = intRenameMap[arch_reg].physical_version;
+-
+-        // If it's not referencing the zero register, then rename the
+-        // register.
+-        if (arch_reg != intZeroReg) {
+-            renamed_version = std::make_pair(freeList->getIntReg(),0);
+-
+-            intRenameMap[arch_reg].physical_version = renamed_version;
+-
+-            assert(renamed_version.first >= 0 && renamed_version.first < numPhysicalIntRegs);
+-
+-        } else {
+-            // Otherwise return the zero register so nothing bad happens.
+-            renamed_version = std::make_pair(intZeroReg,0);
+-        }
+-    } else if (arch_reg < numLogicalRegs) {
+-        // Record the current physical register that is renamed to the
+-        // requested architected register.
+-        prev_version = floatRenameMap[arch_reg].physical_version;
+-
+-        // If it's not referencing the zero register, then rename the
+-        // register.
+-#if THE_ISA == ALPHA_ISA
+-        if (arch_reg != floatZeroReg) {
+-#endif
+-            renamed_version = std::make_pair(freeList->getFloatReg(),0);
+-
+-            floatRenameMap[arch_reg].physical_version = renamed_version;
+-
+-            assert(renamed_version.first < numPhysicalRegs &&
+-                   renamed_version.first >= numPhysicalIntRegs);
+-#if THE_ISA == ALPHA_ISA
+-        } else {
+-            // Otherwise return the zero register so nothing bad happens.
+-            renamed_version = std::make_pair(floatZeroReg,0);
+-        }
+-#endif
+-    } else {
+-        // Subtract off the base offset for miscellaneous registers.
+-        arch_reg = arch_reg - numLogicalRegs;
+-
+-        DPRINTF(Rename, "Renamed misc reg %d\n", arch_reg);
+-
+-        // No renaming happens to the misc. registers.  They are
+-        // simply the registers that come after all the physical
+-        // registers; thus take the base architected register and add
+-        // the physical registers to it.
+-        renamed_version = std::make_pair((arch_reg + numPhysicalRegs),0);
+-
+-        // Set the previous register to the same register; mainly it must be
+-        // known that the prev reg was outside the range of normal registers
+-        // so the free list can avoid adding it.
+-        prev_version = renamed_version;
+-    }
+-
+-    DPRINTF(Rename, "Renamed reg %d to physical reg %d and count %d old mapping was %d and count %d\n",
+-            arch_reg, renamed_version.first,renamed_version.second, prev_version.first, prev_version.second);
+-
+-    return RenameInfo(renamed_version, prev_version);
+-} //Amogh and Raunaq
++}
+ 
+-/*PhysRegIndex
++PhysRegIndex
+ SimpleRenameMap::lookup(RegIndex arch_reg)
+ {
+     if (arch_reg < numLogicalIntRegs) {
+@@ -306,28 +220,9 @@
+         // the number of physical registers.
+         return numPhysicalRegs + arch_reg;
+     }
+-}*/
+-
+-
+-SimpleRenameMap::VersionRegIndex
+-SimpleRenameMap::lookup(RegIndex arch_reg)
+-{
+-    if (arch_reg < numLogicalIntRegs) {
+-        return intRenameMap[arch_reg].physical_version;
+-    } else if (arch_reg < numLogicalRegs) {
+-        return floatRenameMap[arch_reg].physical_version;
+-    } else {
+-        // Subtract off the misc registers offset.
+-        arch_reg = arch_reg - numLogicalRegs;
+-
+-        // Misc. regs don't rename, so simply add the base arch reg to
+-        // the number of physical registers.
+-        return (std::make_pair((numPhysicalRegs + arch_reg),0));
+-    }
+ }
+- //Amogh and Raunaq
+ 
+-/*void
++void
+ SimpleRenameMap::setEntry(RegIndex arch_reg, PhysRegIndex renamed_reg)
+ {
+     // In this implementation the miscellaneous registers do not
+@@ -344,26 +239,6 @@
+ 
+         floatRenameMap[arch_reg].physical_reg = renamed_reg;
+     }
+-}*/
+-
+-
+-void
+-SimpleRenameMap::setEntry(RegIndex arch_reg, VersionRegIndex renamed_version)
+-{
+-    // In this implementation the miscellaneous registers do not
+-    // actually rename, so this function does not allow you to try to
+-    // change their mappings.
+-    if (arch_reg < numLogicalIntRegs) {
+-        DPRINTF(Rename, "Rename Map: Integer register %i being set to %i and count is %i.\n",
+-                (int)arch_reg, renamed_version.first, renamed_version.second);
+-
+-        intRenameMap[arch_reg].physical_version = renamed_version;
+-    } else if (arch_reg < numLogicalIntRegs + numLogicalFloatRegs) {
+-        DPRINTF(Rename, "Rename Map: Float register %i being set to %i and count is %i.\n",
+-                (int)arch_reg - numLogicalIntRegs, renamed_version.first, renamed_version.second);
+-
+-        floatRenameMap[arch_reg].physical_version = renamed_version;
+-    }
+ }
+ 
+ int
+@@ -378,77 +253,3 @@
+         return free_float_regs;
+     }
+ }
+-
+-SimpleRenameMap::RenameInfo
+-SimpleRenameMap::rename_single_use(RegIndex arch_reg, VersionRegIndex old_version, VersionRegIndex new_version)
+-{
+-    VersionRegIndex renamed_version;
+-    VersionRegIndex prev_version;
+-
+-    if (arch_reg < numLogicalIntRegs) {
+-
+-        // Record the current physical register that is renamed to the
+-        // requested architected register.
+-        prev_version = old_version;
+-	//renamed_version = new_version;
+-	
+-        // If it's not referencing the zero register, then rename the
+-        // register.
+-        if (arch_reg != intZeroReg) {
+-            //renamed_version = std::make_pair(freeList->getIntReg(),0);
+-
+-            intRenameMap[arch_reg].physical_version = new_version;
+-	    renamed_version =  new_version;
+-            assert(renamed_version.first >= 0 && renamed_version.first < numPhysicalIntRegs);
+-
+-        } else {
+-            // Otherwise return the zero register so nothing bad happens.
+-            renamed_version = std::make_pair(intZeroReg,0);
+-        }
+-    } else if (arch_reg < numLogicalRegs) {
+-        // Record the current physical register that is renamed to the
+-        // requested architected register.
+-        prev_version = old_version;
+-
+-        // If it's not referencing the zero register, then rename the
+-        // register.
+-#if THE_ISA == ALPHA_ISA
+-        if (arch_reg != floatZeroReg) {
+-#endif
+-            //renamed_version = std::make_pair(freeList->getFloatReg(),0);
+-
+-            floatRenameMap[arch_reg].physical_version = new_version;
+-	    renamed_version = new_version;
+-
+-            assert(renamed_version.first < numPhysicalRegs &&
+-                   renamed_version.first >= numPhysicalIntRegs);
+-#if THE_ISA == ALPHA_ISA
+-        } else {
+-            // Otherwise return the zero register so nothing bad happens.
+-            renamed_version = std::make_pair(floatZeroReg,0);
+-        }
+-#endif
+-    } else {
+-        // Subtract off the base offset for miscellaneous registers.
+-        arch_reg = arch_reg - numLogicalRegs;
+-
+-        DPRINTF(Rename, "Renamed misc reg %d\n", arch_reg);
+-
+-        // No renaming happens to the misc. registers.  They are
+-        // simply the registers that come after all the physical
+-        // registers; thus take the base architected register and add
+-        // the physical registers to it.
+-        renamed_version = std::make_pair((arch_reg + numPhysicalRegs),0);
+-
+-        // Set the previous register to the same register; mainly it must be
+-        // known that the prev reg was outside the range of normal registers
+-        // so the free list can avoid adding it.
+-        prev_version = renamed_version;
+-    }
+-
+-    DPRINTF(Rename, "Renamed reg %d to physical reg %d and count %d old mapping was %d and count %d\n",
+-            arch_reg, renamed_version.first,renamed_version.second, prev_version.first, prev_version.second);
+-
+-    return RenameInfo(renamed_version, prev_version);
+-} //Amogh and Raunaq
+-
+diff -u ./src/cpu/o3/rename_map.hh ./../gem5_new/src/cpu/o3/rename_map.hh
+--- ./src/cpu/o3/rename_map.hh	2018-12-03 18:57:34.461026279 -0500
++++ ./../gem5_new/src/cpu/o3/rename_map.hh	2018-10-09 09:54:01.228218465 -0400
+@@ -53,22 +53,15 @@
+      * previous mapping of a logical register to a physical register.
+      * Used to roll back the rename map to a previous state.
+      */
++    typedef std::pair<RegIndex, PhysRegIndex> UnmapInfo;
+ 
+-
+-    typedef std::pair<PhysRegIndex,int > VersionRegIndex; //Amogh and Raunaq
+-    //typedef std::pair<RegIndex, PhysRegIndex> UnmapInfo;
+-
+-     typedef std::pair<RegIndex, VersionRegIndex > UnmapInfo; //Amogh and Raunaq
+-     
+     /**
+      * Pair of a physical register and a physical register.  Used to
+      * return the physical register that a logical register has been
+      * renamed to, and the previous physical register that the same
+      * logical register was previously mapped to.
+      */
+-    //typedef std::pair<PhysRegIndex, PhysRegIndex> RenameInfo;
+-     typedef std::pair<VersionRegIndex, VersionRegIndex > RenameInfo; //Amogh and Raunaq
+-
++    typedef std::pair<PhysRegIndex, PhysRegIndex> RenameInfo;
+ 
+   public:
+     /** Default constructor.  init() must be called prior to use. */
+@@ -101,26 +94,16 @@
+     //architected register.  Not sure it should have a return value,
+     //but perhaps it should have some sort of fault in case there are
+     //no free registers.
+-    //RenameInfo rename(RegIndex arch_reg);
+-
+-    //PhysRegIndex lookup(RegIndex phys_reg);
+-
+-   RenameInfo rename(RegIndex arch_reg);
++    RenameInfo rename(RegIndex arch_reg);
+ 
+-    VersionRegIndex lookup(RegIndex phys_reg);//Amogh and Raunaq
+-    RenameInfo rename_single_use(RegIndex arch_reg, VersionRegIndex old_version, VersionRegIndex new_version); //Amogh and Raunaq
+- 
++    PhysRegIndex lookup(RegIndex phys_reg);
+ 
+-    /*
+-     *
++    /**
+      * Marks the given register as ready, meaning that its value has been
+      * calculated and written to the register file.
+      * @param ready_reg The index of the physical register that is now ready.
+      */
+-    //void setEntry(RegIndex arch_reg, PhysRegIndex renamed_reg);
+-
+-    void setEntry(RegIndex arch_reg, VersionRegIndex renamed_version); // Amogh and Raunaq
+-
++    void setEntry(RegIndex arch_reg, PhysRegIndex renamed_reg);
+ 
+     int numFreeEntries();
+ 
+@@ -159,7 +142,7 @@
+      */
+     RegIndex floatZeroReg;
+ 
+-    /*class RenameEntry
++    class RenameEntry
+     {
+       public:
+         PhysRegIndex physical_reg;
+@@ -168,20 +151,8 @@
+         RenameEntry()
+             : physical_reg(0), valid(false)
+         { }
+-    };*/
+-
+-
+-    class RenameEntry
+-    {
+-      public:
+-        VersionRegIndex physical_version;
+-        bool valid;
+-
+-        RenameEntry()
+-            : physical_version(0,0), valid(false)
+-        { }
+     };
+-//Amogh and Raunaq
++
+   private:
+     /** Integer rename map. */
+     std::vector<RenameEntry> intRenameMap;
+diff -u ./src/cpu/o3/SConscript ./../gem5_new/src/cpu/o3/SConscript
+--- ./src/cpu/o3/SConscript	2018-12-04 18:47:18.545631396 -0500
++++ ./../gem5_new/src/cpu/o3/SConscript	2018-10-09 09:54:00.821196961 -0400
+@@ -58,8 +58,6 @@
+     Source('lsq_unit.cc')
+     Source('mem_dep_unit.cc')
+     Source('rename.cc')
+-    Source('prt.cc')
+-    Source('reg_pred.cc')
+     Source('rename_map.cc')
+     Source('rob.cc')
+     Source('scoreboard.cc')
+diff -u ./src/cpu/o3/scoreboard.cc ./../gem5_new/src/cpu/o3/scoreboard.cc
+--- ./src/cpu/o3/scoreboard.cc	2018-11-29 12:22:20.666580866 -0500
++++ ./../gem5_new/src/cpu/o3/scoreboard.cc	2018-10-09 09:54:01.263220314 -0400
+@@ -52,48 +52,27 @@
+     numPhysicalRegs = numPhysicalIntRegs  + numPhysicalFloatRegs;
+ 
+     //Resize scoreboard appropriately
+-    //resize(numPhysicalRegs + (numMiscRegs * activeThreads));
+-    resize((numPhysicalRegs + (numMiscRegs * activeThreads))*4);//Amogh and Raunaq
++    resize(numPhysicalRegs + (numMiscRegs * activeThreads));
+ 
+     //Initialize values
+-    for (int i=0; i < numLogicalIntRegs * activeThreads*4; i++) {
++    for (int i=0; i < numLogicalIntRegs * activeThreads; i++) {
+         assert(indexInBounds(i));
+         regScoreBoard[i] = 1;
+     }
+ 
+-    for (int i= numPhysicalIntRegs*4;
+-         i < (numPhysicalIntRegs + (numLogicalFloatRegs * activeThreads))*4;
++    for (int i= numPhysicalIntRegs;
++         i < numPhysicalIntRegs + (numLogicalFloatRegs * activeThreads);
+          i++) {
+         assert(indexInBounds(i));
+         regScoreBoard[i] = 1;
+     }
+ 
+-    for (int i = numPhysicalRegs*4;
+-         i < (numPhysicalRegs + (numMiscRegs * activeThreads))*4;
++    for (int i = numPhysicalRegs;
++         i < numPhysicalRegs + (numMiscRegs * activeThreads);
+          i++) {
+         assert(indexInBounds(i));
+         regScoreBoard[i] = 1;
+     }
+-//Initialize value // Amogh and Raunaq
+- /*for (int i=0; i < numLogicalIntRegs * activeThreads *4; i++) {
+-        assert(indexInBounds(i));
+-        regScoreBoard[i] = 1;
+-    }
+-
+-    for (int i= numPhysicalIntRegs*4;
+-         i < (numPhysicalIntRegs + (numLogicalFloatRegs * activeThreads))*4;
+-         i++) {
+-        assert(indexInBounds(i));
+-        regScoreBoard[i] = 1;
+-    }
+-
+-    for (int i = numPhysicalRegs*4;
+-         i < (numPhysicalRegs + (numMiscRegs * activeThreads))*4;
+-         i++) {
+-        assert(indexInBounds(i));
+-        regScoreBoard[i] = 1;
+-    }
+-*/
+ }
+ 
+ std::string
+@@ -121,27 +100,6 @@
+     assert(indexInBounds(phys_reg));
+     return regScoreBoard[phys_reg];
+ }
+-//Amogh and Raunaq
+-/*bool
+-Scoreboard::getReg(VersionInfo ready_version)
+-{
+-#if THE_ISA == ALPHA_ISA
+-    // Always ready if int or fp zero reg.
+-    if (phys_version.first == zeroRegIdx ||
+-        phys_version.first == (zeroRegIdx + numPhysicalIntRegs)) {
+-        return 1;
+-    }
+-#else
+-    // Always ready if int zero reg.
+-    if (phys_version.first == zeroRegIdx) {
+-        return 1;
+-    }
+-#endif
+-
+-    assert(indexInBounds(phys_version.first*4+phys_version.second));
+-    return regScoreBoard[phys_version.first*4+phys_version.second];
+-}*/
+-
+ 
+ void
+ Scoreboard::setReg(PhysRegIndex phys_reg)
+@@ -152,17 +110,6 @@
+     regScoreBoard[phys_reg] = 1;
+ }
+ 
+-//Amogh and Raunaq
+-/*void
+-Scoreboard::setReg(VersionInfo phys_version)
+-{
+-    DPRINTF(Scoreboard, "Setting reg %i as ready\n", (phys_version.first*4+phys_version.second));
+-
+-    assert(indexInBounds(phys_version.first*4+phys_version.second));
+-    regScoreBoard[phys_version.first*4+phys_version.second] = 1;
+-}*/
+-
+-
+ void
+ Scoreboard::unsetReg(PhysRegIndex ready_reg)
+ {
+@@ -182,23 +129,3 @@
+     assert(indexInBounds(ready_reg));
+     regScoreBoard[ready_reg] = 0;
+ }
+-//Amogh and Raunaq
+-/*void
+-Scoreboard::unsetReg(VersionInfo ready_version)
+-{
+-#if THE_ISA == ALPHA_ISA
+-    if (ready_version.first == zeroRegIdx ||
+-        ready_version.first == (zeroRegIdx + numPhysicalIntRegs)) {
+-        // Don't do anything if int or fp zero reg.
+-        return;
+-    }
+-#else
+-    if (ready_version.first == zeroRegIdx) {
+-        // Don't do anything if int zero reg.
+-        return;
+-    }
+-#endif
+-
+-    assert(indexInBounds(ready_version.first*4+ready_version.second));
+-    regScoreBoard[ready_version.first*4+ready_version.second] = 0;
+-}*/
+Only in ./src/cpu/o3: .scoreboard.cc.swo
+Only in ./src/cpu/o3: .scoreboard.cc.swp
+diff -u ./src/cpu/o3/scoreboard.hh ./../gem5_new/src/cpu/o3/scoreboard.hh
+--- ./src/cpu/o3/scoreboard.hh	2018-11-26 13:54:22.002599041 -0500
++++ ./../gem5_new/src/cpu/o3/scoreboard.hh	2018-10-09 09:54:01.269220630 -0400
+@@ -81,19 +81,6 @@
+ 
+     /** Sets the register as not ready. */
+     void unsetReg(PhysRegIndex ready_reg);
+-    
+-    /*Amogh and Raunaq*/
+-    //typedef std::pair<PhysRegIndex,int>VersionInfo;
+-
+-
+-    /** Checks if the register is ready. */ /*Amogh and Raunaq*/
+-    //bool getReg(VersionInfo ready_version);
+-
+-    /** Sets the register as ready. */ /*Amogh and Raunaq*/
+-    //void setReg(VersionInfo phys_version);
+-
+-    /** Sets the register as not ready. */ /*Amogh and Raunaq*/
+-    //void unsetReg(VersionInfo ready_version);
+ 
+   private:
+     /** Scoreboard of physical integer registers, saying whether or not they
+@@ -139,13 +126,6 @@
+     {
+         return idx < currentSize;
+     }
+-
+-  /*  bool
+-    indexInBounds(VersionInfo sb_version)
+-    {
+-        return (sb_version.first*4+sb_version.second) < currentSize;
+-    }*/
+-
+ };
+ 
+ #endif
+Only in ./src/cpu/o3: .scoreboard.hh.swp
+Only in ./src/cpu/o3: singleuseTable.cc
+Only in ./src/cpu/o3: singleuseTable.hh
+diff -u ./src/cpu/o3/thread_context.hh ./../gem5_new/src/cpu/o3/thread_context.hh
+--- ./src/cpu/o3/thread_context.hh	2018-11-25 13:04:38.283603968 -0500
++++ ./../gem5_new/src/cpu/o3/thread_context.hh	2018-10-09 09:54:01.296222057 -0400
+@@ -181,31 +181,13 @@
+ 
+     virtual FloatRegBits readFloatRegBits(int reg_idx);
+ 
+-
+-     /** Reads an integer register. */
+-    //virtual uint64_t readIntReg(int reg_idx); //Amogh and Raunaq
+-
+-    //virtual FloatReg readFloatReg(int reg_idx); //Amogh and Raunaq
+-
+-    //virtual FloatRegBits readFloatRegBits(int reg_idx);//Amogh and Raunaq
+-
+-
+     /** Sets an integer register to a value. */
+     virtual void setIntReg(int reg_idx, uint64_t val);
+ 
+-    /** Sets an integer register to a value. */ //Amogh and Raunaq
+-    //virtual void setIntReg(int reg_idx, uint64_t val);
+-
+-
+     virtual void setFloatReg(int reg_idx, FloatReg val);
+ 
+     virtual void setFloatRegBits(int reg_idx, FloatRegBits val);
+ 
+-   //virtual void setFloatReg(int reg_idx, FloatReg val); //Amogh and Raunaq
+-
+-   // virtual void setFloatRegBits(int reg_idx, FloatRegBits val); //Amogh and Raunaq
+-
+-
+     /** Reads this thread's PC state. */
+     virtual TheISA::PCState pcState()
+     { return cpu->pcState(thread->threadId()); }
+diff -u ./src/cpu/o3/thread_context_impl.hh ./../gem5_new/src/cpu/o3/thread_context_impl.hh
+--- ./src/cpu/o3/thread_context_impl.hh	2018-11-25 13:02:50.201901646 -0500
++++ ./../gem5_new/src/cpu/o3/thread_context_impl.hh	2018-10-09 09:54:01.306222585 -0400
+@@ -230,15 +230,6 @@
+     return cpu->readArchIntReg(reg_idx, thread->threadId());
+ }
+ 
+-/*template <class Impl> //Amogh and Raunaq
+-uint64_t
+-O3ThreadContext<Impl>::readIntReg(int reg_idx)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenIntIndex(reg_idx);
+-    return cpu->readArchIntReg(reg_idx, thread->threadId());
+-}
+-*/
+-
+ template <class Impl>
+ TheISA::FloatReg
+ O3ThreadContext<Impl>::readFloatReg(int reg_idx)
+@@ -247,15 +238,6 @@
+     return cpu->readArchFloatReg(reg_idx, thread->threadId());
+ }
+ 
+-/*template <class Impl> //Amogh and Raunaq
+-TheISA::FloatReg
+-O3ThreadContext<Impl>::readFloatReg(int reg_idx)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenFloatIndex(reg_idx);
+-    return cpu->readArchFloatReg(reg_idx, thread->threadId());
+-}
+-*/
+-
+ template <class Impl>
+ TheISA::FloatRegBits
+ O3ThreadContext<Impl>::readFloatRegBits(int reg_idx)
+@@ -264,15 +246,6 @@
+     return cpu->readArchFloatRegInt(reg_idx, thread->threadId());
+ }
+ 
+-/*template <class Impl> //Amogh Raunaq
+-TheISA::FloatRegBits
+-O3ThreadContext<Impl>::readFloatRegBits(int reg_idx)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenFloatIndex(reg_idx);
+-    return cpu->readArchFloatRegInt(reg_idx, thread->threadId());
+-}
+-*/
+-
+ template <class Impl>
+ void
+ O3ThreadContext<Impl>::setIntReg(int reg_idx, uint64_t val)
+@@ -286,20 +259,6 @@
+     }
+ }
+ 
+-/*template <class Impl> //Amogh and Raunaq
+-void
+-O3ThreadContext<Impl>::setIntReg(int reg_idx, uint64_t val)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenIntIndex(reg_idx);
+-    cpu->setArchIntReg(reg_idx, val, thread->threadId());
+-
+-    // Squash if we're not already in a state update mode.
+-    if (!thread->trapPending && !thread->inSyscall) {
+-        cpu->squashFromTC(thread->threadId());
+-    }
+-}
+-*/
+-
+ template <class Impl>
+ void
+ O3ThreadContext<Impl>::setFloatReg(int reg_idx, FloatReg val)
+@@ -312,19 +271,6 @@
+     }
+ }
+ 
+-/*template <class Impl> //Amogh and Raunaq
+-void
+-O3ThreadContext<Impl>::setFloatReg(int reg_idx, FloatReg val)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenFloatIndex(reg_idx);
+-    cpu->setArchFloatReg(reg_idx, val, thread->threadId());
+-
+-    if (!thread->trapPending && !thread->inSyscall) {
+-        cpu->squashFromTC(thread->threadId());
+-    }
+-}
+-*/
+-
+ template <class Impl>
+ void
+ O3ThreadContext<Impl>::setFloatRegBits(int reg_idx, FloatRegBits val)
+@@ -338,20 +284,6 @@
+     }
+ }
+ 
+-/*template <class Impl>//Amogh and Raunaq
+-void
+-O3ThreadContext<Impl>::setFloatRegBits(int reg_idx, FloatRegBits val)
+-{
+-    reg_idx = cpu->isa[thread->threadId()].flattenFloatIndex(reg_idx);
+-    cpu->setArchFloatRegInt(reg_idx, val, thread->threadId());
+-
+-    // Squash if we're not already in a state update mode.
+-    if (!thread->trapPending && !thread->inSyscall) {
+-        cpu->squashFromTC(thread->threadId());
+-    }
+-}
+-*/
+-
+ template <class Impl>
+ void
+ O3ThreadContext<Impl>::pcState(const TheISA::PCState &val)
+diff -u ./src/cpu/base_dyn_inst.hh ./../gem5_new/src/cpu/base_dyn_inst.hh
+--- ./src/cpu/base_dyn_inst.hh	2018-11-26 12:00:54.264873276 -0500
++++ ./../gem5_new/src/cpu/base_dyn_inst.hh	2018-10-09 09:54:00.094158551 -0400
+@@ -85,7 +85,7 @@
+     typedef TheISA::IntReg IntReg;
+     // Floating point register type.
+     typedef TheISA::FloatReg FloatReg;
+-    typedef std::pair<PhysRegIndex,int> VersionInfo; //Amogh and Raunaq
++
+     // The DynInstPtr type.
+     typedef typename Impl::DynInstPtr DynInstPtr;
+     typedef RefCountingPtr<BaseDynInst<Impl> > BaseDynInstPtr;
+@@ -264,26 +264,17 @@
+     /** Physical register index of the destination registers of this
+      *  instruction.
+      */
+-    //PhysRegIndex _destRegIdx[TheISA::MaxInstDestRegs];
+-
+-    VersionInfo _destRegIdx[(TheISA::MaxInstDestRegs)]; //Amogh and Raunaq
+-
++    PhysRegIndex _destRegIdx[TheISA::MaxInstDestRegs];
+ 
+     /** Physical register index of the source registers of this
+      *  instruction.
+      */
+-    //PhysRegIndex _srcRegIdx[TheISA::MaxInstSrcRegs];
+-
+-    VersionInfo _srcRegIdx[(TheISA::MaxInstDestRegs)]; //Amogh and Raunaq
+-
++    PhysRegIndex _srcRegIdx[TheISA::MaxInstSrcRegs];
+ 
+     /** Physical register index of the previous producers of the
+      *  architected destinations.
+      */
+-    //PhysRegIndex _prevDestRegIdx[TheISA::MaxInstDestRegs];
+-
+-    VersionInfo _prevDestRegIdx[(TheISA::MaxInstDestRegs)]; //Amogh and Raunaq
+-
++    PhysRegIndex _prevDestRegIdx[TheISA::MaxInstDestRegs];
+ 
+ 
+   public:
+@@ -374,31 +365,18 @@
+     /** Returns the physical register index of the i'th destination
+      *  register.
+      */
+-/*    PhysRegIndex renamedDestRegIdx(int idx) const
+-    {
+-        return _destRegIdx[idx];
+-    }*/
+-
+-     VersionInfo renamedDestRegIdx(int idx) const //Amogh and Raunaq
++    PhysRegIndex renamedDestRegIdx(int idx) const
+     {
+         return _destRegIdx[idx];
+     }
+ 
+-
+     /** Returns the physical register index of the i'th source register. */
+- /*   PhysRegIndex renamedSrcRegIdx(int idx) const
+-    {
+-        assert(TheISA::MaxInstSrcRegs > idx);
+-        return _srcRegIdx[idx];
+-    }*/
+-
+- VersionInfo renamedSrcRegIdx(int idx) const  //Amogh Raunaq
++    PhysRegIndex renamedSrcRegIdx(int idx) const
+     {
+         assert(TheISA::MaxInstSrcRegs > idx);
+         return _srcRegIdx[idx];
+     }
+ 
+-
+     /** Returns the flattened register index of the i'th destination
+      *  register.
+      */
+@@ -410,11 +388,7 @@
+     /** Returns the physical register index of the previous physical register
+      *  that remapped to the same logical register index.
+      */
+-   /* PhysRegIndex prevDestRegIdx(int idx) const
+-    {
+-        return _prevDestRegIdx[idx];
+-    }*/
+- VersionInfo prevDestRegIdx(int idx) const //Amogh and Raunaq
++    PhysRegIndex prevDestRegIdx(int idx) const
+     {
+         return _prevDestRegIdx[idx];
+     }
+@@ -422,37 +396,22 @@
+     /** Renames a destination register to a physical register.  Also records
+      *  the previous physical register that the logical register mapped to.
+      */
+-/*    void renameDestReg(int idx,
++    void renameDestReg(int idx,
+                        PhysRegIndex renamed_dest,
+                        PhysRegIndex previous_rename)
+     {
+         _destRegIdx[idx] = renamed_dest;
+         _prevDestRegIdx[idx] = previous_rename;
+-    }*/
+-
+- void renameDestReg(int idx,
+-                       VersionInfo renamed_dest,
+-                       VersionInfo previous_rename)
+-    {
+-        _destRegIdx[idx] = renamed_dest;
+-        _prevDestRegIdx[idx] = previous_rename;
+     }
+- // Amogh Raunaq
+ 
+     /** Renames a source logical register to the physical register which
+      *  has/will produce that logical register's result.
+      *  @todo: add in whether or not the source register is ready.
+      */
+-    /*void renameSrcReg(int idx, PhysRegIndex renamed_src)
+-    {
+-        _srcRegIdx[idx] = renamed_src;
+-    }*/
+-
+-void renameSrcReg(int idx, VersionInfo renamed_src)
++    void renameSrcReg(int idx, PhysRegIndex renamed_src)
+     {
+         _srcRegIdx[idx] = renamed_src;
+     }
+- //Amogh and Raunaq
+ 
+     /** Flattens a destination architectural register index into a logical
+      * index.
+
+//////////////////newly added files ////////////////////////////////////////////////////////////////
+
+/*
+ * Copyright (c) 2004-2005 The Regents of The University of Michigan
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Authors: Raunaq Majumdar, Amogh Manjunath
+ */
+
+// Todo:  Create destructor.
+// Have it so that there's a more meaningful name given to the variable
+// that marks the beginning of the FP registers.
+
+#ifndef __CPU_O3_PRT_HH__
+#define __CPU_O3_PRT_HH__
+
+#include <iostream>
+#include <utility>
+#include <vector>
+
+#include "arch/types.hh"
+#include "config/the_isa.hh"
+#include "cpu/o3/free_list.hh"
+//template <class Impl>
+
+class simplephysicalregtable
+{
+protected:
+    //typedef TheISA::RegIndex RegIndex;
+public:
+	//Typedefs from the Impl.
+    //typedef typename Impl::O3CPU O3CPU;
+    //typedef typename Impl::DynInstPtr DynInstPtr;
+        int two_bit_version_count;
+	typedef std::pair<PhysRegIndex, int> VersionInfo;
+	VersionInfo Version;
+//int switch_reg;
+//int prev_counter;
+	//bool read;
+	//typedef typename Impl::DynInstPtr DynInstPtr;
+	//int two_bit_version_count;
+public:
+	simplephysicalregtable ():Version(0,0) {};
+
+	~simplephysicalregtable();
+
+	 void init(unsigned _numPhysicalIntRegs,
+              PhysRegIndex &_int_reg_start,
+
+              unsigned _numPhysicalFloatRegs,
+              PhysRegIndex &_float_reg_start,
+
+              unsigned _numMiscRegs,
+
+              //RegIndex _intZeroReg,
+              //RegIndex _floatZeroReg,
+
+              int id,
+              bool bindRegs);
+ VersionInfo setPRTEntry(PhysRegIndex phys_reg, int type_flag_src, int type_flag_dest, int roll_back_switch);
+ VersionInfo lookup(PhysRegIndex phys_reg);
+
+//int numPRTFreeEntries();
+
+
+private:
+    /** Rename Map ID  */
+    int id;
+
+    /** Number of logical integer registers. */
+    //int numLogicalIntRegs;
+
+    /** Number of physical integer registers. */
+    int numPhysicalIntRegs;
+
+    /** Number of logical floating point registers. */
+    //int numLogicalFloatRegs;
+
+    /** Number of physical floating point registers. */
+    int numPhysicalFloatRegs;
+
+    /** Number of miscellaneous registers. */
+    int numMiscRegs;
+
+    /** Number of logical integer + float registers. */
+    //int numLogicalRegs;
+
+    /** Number of physical integer + float registers. */
+    int numPhysicalRegs;
+ 
+    /** The integer zero register.  This implementation assumes it is always
+     *  zero and never can be anything else.
+     */
+   // RegIndex intZeroReg;
+
+    /** The floating point zero register.  This implementation assumes it is
+     *  always zero and never can be anything else.
+     */
+   // RegIndex floatZeroReg;
+class PRTEntry
+    {
+      public:
+        PhysRegIndex physical_reg;
+        bool read;
+	//typedef typename Impl::DynInstPtr DynInstPtr;
+	int two_bit_version_count;
+//	typedef std::pair<PhysRegIndex, two_bit_version_count> VersionInfo;
+        //int prev_counter;
+
+        PRTEntry()
+            : physical_reg(0), read(false), two_bit_version_count(0)
+        { };
+    };
+
+  private:
+    /** Integer PRT map. */
+    //std::vector<RenameEntry> intRenameMap;
+    std::vector<PRTEntry> intPRTMap;
+
+    /** Floating point PRT map. */
+    //std::vector<RenameEntry> floatRenameMap;
+    std::vector<PRTEntry> floatPRTMap;
+ /* private:
+    * Free list interface. 
+    SimpleFreeList *freeList;*/
+
+
+
+
+};
+#endif //__CPU_O3_PRT_HH__
+/*
+ * Copyright (c) 2004-2005 The Regents of The University of Michigan
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Authors: Raunaq Majumdar, Amogh Manjunath
+ */
+
+#include <vector>
+
+#include "cpu/o3/prt.hh"
+#include "debug/Rename.hh"
+
+using namespace std;
+
+// @todo: Consider making inline bool functions that determine if the
+// register is a logical int, logical fp, physical int, physical fp,
+// etc.
+//int counter_float_prev, counter_int_prev, 
+
+
+simplephysicalregtable::~simplephysicalregtable()
+{
+}
+void
+simplephysicalregtable::init(unsigned _numPhysicalIntRegs,
+                      PhysRegIndex &ireg_idx,
+
+                      unsigned _numPhysicalFloatRegs,
+                      PhysRegIndex &freg_idx,
+
+                      unsigned _numMiscRegs,
+
+                     // RegIndex _intZeroReg,
+                     // RegIndex _floatZeroReg,
+
+                      int map_id,
+                      bool bindRegs)
+{
+     id = map_id;
+
+    numPhysicalIntRegs = _numPhysicalIntRegs;
+
+    numPhysicalFloatRegs = _numPhysicalFloatRegs;
+
+    numMiscRegs = _numMiscRegs;
+
+    //intZeroReg = _intZeroReg;
+    //floatZeroReg = _floatZeroReg;
+
+    DPRINTF(Rename, "Creating PRT map %i.  Phys: %i , Float: "
+            "%i.\n", id,  numPhysicalIntRegs,  numPhysicalFloatRegs);
+
+    //numLogicalRegs = numLogicalIntRegs + numLogicalFloatRegs;
+
+    numPhysicalRegs = numPhysicalIntRegs + numPhysicalFloatRegs;
+    //Create the PRT maps
+    intPRTMap.resize(numPhysicalIntRegs);
+    floatPRTMap.resize(numPhysicalFloatRegs);
+     if (bindRegs) {
+        DPRINTF(Rename, "Binding registers into prt map %i\n",id);
+
+        // Initialize the entries in the integer rename map to point to the
+        // physical registers of the same index
+        for (PhysRegIndex index = 0; index < numPhysicalIntRegs; ++index)
+        {
+            //intPRTMap[index].physical_reg = ireg_idx++;
+            intPRTMap[index].physical_reg = index;
+	     intPRTMap[index].two_bit_version_count = 0;
+	    DPRINTF(Rename,"check index intPRTMap %i \n  ",intPRTMap[index].physical_reg );
+
+        }
+
+        // Initialize the entries in the floating point rename map to point to
+        // the physical registers of the same index
+        // Although the index refers purely to architected registers, because
+        // the floating reg indices come after the integer reg indices, they
+        // may exceed the size of a normal RegIndex (short).
+        for (PhysRegIndex index = numPhysicalIntRegs;
+             index < numPhysicalRegs; ++index)
+        {
+            //floatPRTMap[index].physical_reg = freg_idx++;
+            floatPRTMap[index].physical_reg = index;
+		floatPRTMap[index].two_bit_version_count = 0;
+		 DPRINTF(Rename,"check index floatPRTMap %i \n  ",floatPRTMap[index].physical_reg );
+
+        }
+    } 
+else {
+        DPRINTF(Rename, "Binding registers into prt map %i\n",id);
+	DPRINTF(Rename, "checkpoint %i\n ",id);
+        PhysRegIndex temp_ireg = ireg_idx;
+
+        for (PhysRegIndex index = 0; index < numPhysicalIntRegs; ++index)
+        {
+            intPRTMap[index].physical_reg = temp_ireg++;
+		 intPRTMap[index].two_bit_version_count = 0;
+
+		 DPRINTF(Rename,"check index else intPRTMap %i \n  ",intPRTMap[index].physical_reg );
+
+        }
+
+        PhysRegIndex temp_freg = freg_idx;
+
+        for (PhysRegIndex index = numPhysicalIntRegs;
+             index < numPhysicalRegs; ++index)
+        {
+            floatPRTMap[index].physical_reg = temp_freg++;
+		 floatPRTMap[index].two_bit_version_count = 0;
+
+		 DPRINTF(Rename,"check index  else floatPRTMap %i \n  ",floatPRTMap[index].physical_reg );
+
+        }
+    }
+}
+
+simplephysicalregtable::VersionInfo
+simplephysicalregtable::lookup(PhysRegIndex phy_reg)
+{
+    if (phy_reg < numPhysicalIntRegs) {
+        VersionInfo Version_Return;
+	Version_Return.first=intPRTMap[phy_reg].physical_reg;
+       /* if(switch_reg==1)
+	  Version_Return.second=intPRTMap[phy_reg].prev_counter;
+        else*/
+	  Version_Return.second=intPRTMap[phy_reg].two_bit_version_count;
+	DPRINTF(Rename,"done  int lookup case with phy reg %i and count %i\n  ", Version_Return.first, Version_Return.second );
+
+	return Version_Return;	
+//return VersionInfo(intPRTMap[phy_reg].physical_reg,intPRTMap[phy_reg].two_bit_version_count);
+    } else if (phy_reg < numPhysicalRegs) {
+        VersionInfo Version_Return;
+	Version_Return.first=floatPRTMap[phy_reg].physical_reg;
+        /*if(switch_reg==1)
+	  Version_Return.second=floatPRTMap[phy_reg].prev_counter;
+        else*/
+	  Version_Return.second=floatPRTMap[phy_reg].two_bit_version_count;
+	DPRINTF(Rename,"done  float lookup case with phy reg %i and count %i \n ", Version_Return.first, Version_Return.second );
+
+	return Version_Return;	
+    } else {
+        // Subtract off the misc registers offset.
+        phy_reg = phy_reg - numPhysicalRegs;
+
+        // Misc. regs don't rename, so simply add the base arch reg to
+        // the number of physical registers.
+        VersionInfo Version_Return;
+	Version_Return.first = numPhysicalRegs + phy_reg;
+	Version_Return.second = 0;
+	DPRINTF(Rename,"done  misc lookup case with phy reg %i and count %i \n ", Version_Return.first, Version_Return.second );
+
+        //return numPhysicalRegs + phy_reg;
+        return Version_Return;
+    }
+}
+
+
+
+simplephysicalregtable::VersionInfo simplephysicalregtable:: setPRTEntry(PhysRegIndex phys_reg,int type_flag_src,int type_flag_dest, int roll_back_switch)
+{/*//check if the source regs is been renamed  
+//renaming source regs
+	if(src.read == 0)
+		then set read = 1
+	else if(src.read ==1)
+		keep it to 1
+//renaming dest regs	      
+  if(dest == src)
+  { 
+    renamed = rename_map(); // checking if that logical dest register has been renamed to phy reg from free list or not
+    //if not assign a phy reg to it
+    if(!renamed)
+    {
+      physical_reg_index = rename_map(assign);
+      version_no = 2bit_pred();
+      read = 1;  
+      physical_reg_index.shadow_cell[counter+1,counter];
+      counter++;
+      
+    }
+    else
+    {
+      if(counter <= version_no+1 && !read)
+      {
+        physical_reg_index.shadow_cell[counter];
+        counter++;
+      }
+      else
+      {
+        if(counter == 4)
+          counter = 0;
+        physical_reg_index = rename_map(assign);
+        physical_reg_index.shadow_cell[counter];
+        read = 1;  
+      }
+    }
+  }
+  else
+  {
+    physical_reg_index = rename_map(assign);
+    read = 0;
+    counter = 0;
+  }*/
+
+// lets have a variable called as type. Type determines if the phy reg is reused then set the phy reg index as one
+VersionInfo Fin_Version_Return;
+//int switch_reg=0;
+if(type_flag_src == 1 && type_flag_dest == 0) // src reg is updated in prt
+{
+//switch_reg =0;
+//switch_reg = 0;
+//set the src row_read to 1
+if(phys_reg<numPhysicalIntRegs)
+{intPRTMap[phys_reg].read = 1;}
+else if(phys_reg<numPhysicalRegs)
+{floatPRTMap[phys_reg].read = 1;}
+DPRINTF(Rename,"entering 1 0 0 case with phy reg %i and count %i \n ", phys_reg, intPRTMap[phys_reg].two_bit_version_count );
+//Fin_Version_Return = lookup(phys_reg,0);
+
+}
+
+else if(type_flag_src == 0 && type_flag_dest ==1) // dest reg is updatded in prt
+{
+//switch_reg =0;
+//set the dest row_read to 0
+//update counter in the new reg
+if(phys_reg<numPhysicalIntRegs)
+{intPRTMap[phys_reg].read = 0;
+ intPRTMap[phys_reg].two_bit_version_count = intPRTMap[phys_reg].two_bit_version_count++;
+}
+else if(phys_reg<numPhysicalRegs)
+{floatPRTMap[phys_reg].read = 0;
+floatPRTMap[phys_reg].two_bit_version_count = floatPRTMap[phys_reg].two_bit_version_count++;
+}
+DPRINTF(Rename,"entering 0 1 0 case with phy reg %i and count %i \n ", phys_reg, intPRTMap[phys_reg].two_bit_version_count );
+//Fin_Version_Return = lookup(phys_reg,0);
+
+}
+else if(type_flag_src == 1 && type_flag_dest ==1 && roll_back_switch==0 ) // src ==dest is updated in prt
+{
+//switch_reg = 0; 
+//set the reg row read to 1
+ //update counter in the same reg
+if(phys_reg<numPhysicalIntRegs)
+{intPRTMap[phys_reg].read = 1;
+ intPRTMap[phys_reg].two_bit_version_count = intPRTMap[phys_reg].two_bit_version_count++;
+}
+else if(phys_reg<numPhysicalRegs)
+{floatPRTMap[phys_reg].read = 1;
+floatPRTMap[phys_reg].two_bit_version_count = floatPRTMap[phys_reg].two_bit_version_count++;
+}
+DPRINTF(Rename,"entering 1 1 0 case with phy reg %i and count %i \n ", phys_reg, intPRTMap[phys_reg].two_bit_version_count );
+//Fin_Version_Return = lookup(phys_reg,0);
+
+}
+
+else if(type_flag_src == 0 && type_flag_dest ==0) //check this condition for correct roll back 
+{//switch_reg = 0;
+//set the reg row read to 1
+ //update counter in the same reg
+if(phys_reg<numPhysicalIntRegs)
+{intPRTMap[phys_reg].read = 0;
+ intPRTMap[phys_reg].two_bit_version_count = 0;
+}
+else if(phys_reg<numPhysicalRegs)
+{floatPRTMap[phys_reg].read = 0;
+floatPRTMap[phys_reg].two_bit_version_count = 0;
+}
+DPRINTF(Rename,"entering 0 0 0 case with phy reg %i and count %i \n  ", phys_reg, intPRTMap[phys_reg].two_bit_version_count );
+//Fin_Version_Return = lookup(phys_reg,0);
+
+}
+
+
+else if(type_flag_src == 1 && type_flag_dest ==1 && roll_back_switch == 1){
+//switch_reg = 1;
+//set the dest row_read to 0
+//update counter in the new reg
+if(phys_reg<numPhysicalIntRegs)
+{intPRTMap[phys_reg].read = 0;
+//intPRTMap[phys_reg].prev_counter = intPRTMap[phys_reg].two_bit_version_count;
+//intPRTMap[phys_reg].prev_counter--;
+//intPRTMap[phys_reg].two_bit_version_count = intPRTMap[phys_reg].two_bit_version_count - 1;
+
+}
+else if(phys_reg<numPhysicalRegs)
+{floatPRTMap[phys_reg].read = 0;
+//floatPRTMap[phys_reg].prev_counter = floatPRTMap[phys_reg].two_bit_version_count;
+//floatPRTMap[phys_reg].prev_counter--;
+//floatPRTMap[phys_reg].prev_counter = floatPRTMap[phys_reg].two_bit_version_count - 1;
+
+}
+DPRINTF(Rename,"entering 1 1 1 case with phy reg %i and count %i \n ", phys_reg, intPRTMap[phys_reg].two_bit_version_count );
+//Fin_Version_Return = lookup(phys_reg,1);
+
+}
+
+if(floatPRTMap[phys_reg].two_bit_version_count == 4)
+  floatPRTMap[phys_reg].two_bit_version_count = 0;
+if(intPRTMap[phys_reg].two_bit_version_count == 4)
+  intPRTMap[phys_reg].two_bit_version_count = 0;
+
+//floatPRTMap[phys_reg].prev_counter = floatPRTMap[phys_reg].two_bit_version_count;
+//intPRTMap[phys_reg].prev_counter = intPRTMap[phys_reg].two_bit_version_count;
+Fin_Version_Return = lookup(phys_reg);
+if(roll_back_switch == 1)
+Fin_Version_Return.second = Fin_Version_Return.second - 1;
+return Fin_Version_Return; 
+
+}
+
+
+
+/*
+ * Copyright (c) 2004-2005 The Regents of The University of Michigan
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Authors: Raunaq Majumdar, Amogh Manjunath
+ */
+
+
+#ifndef __CPU_O3_REG_PRED_HH__
+#define __CPU_O3_REG_PRED_HH__
+
+#include <iostream>
+#include <utility>
+#include <vector>
+
+#include <iostream> 
+#include <iterator> 
+#include <map> 
+
+#include "arch/types.hh"
+#include "config/the_isa.hh"
+#include "cpu/o3/free_list.hh"
+
+class simpleRegisterPredictorTable
+{
+  public:
+    int ShadowCellNum;
+    typedef std::pair<PhysRegIndex, int> PredictorInfo;   
+    PredictorInfo reg_pred_val;
+    typedef std::pair<int,int> DependencyInfo;
+    //create a variable to hold PC 
+
+ public:
+	simpleRegisterPredictorTable ():reg_pred_val(0,0) {};
+
+	~simpleRegisterPredictorTable();
+
+	 void init(unsigned _numPhysicalIntRegs,
+              PhysRegIndex &_int_reg_start,
+
+              unsigned _numPhysicalFloatRegs,
+              PhysRegIndex &_float_reg_start,
+
+              unsigned _numMiscRegs,
+
+              //RegIndex _intZeroReg,
+              //RegIndex _floatZeroReg,
+
+              int id,
+              bool bindRegs);
+ 
+ 
+PredictorInfo setRegPredictorEntry(PhysRegIndex phys_reg, unsigned PC);
+PredictorInfo lookup(PhysRegIndex phys_reg);
+PredictorInfo updateRegPredictorEntry(PhysRegIndex phys_reg, int change, int value);
+DependencyInfo setDependency(PhysRegIndex phys_reg);
+DependencyInfo getDependency(PhysRegIndex phys_reg);
+
+   
+private:
+    /** Predictor Map ID  */
+    int id;
+
+    /** Number of logical integer registers. */
+    //int numLogicalIntRegs;
+
+    /** Number of physical integer registers. */
+    int numPhysicalIntRegs;
+
+    /** Number of logical floating point registers. */
+    //int numLogicalFloatRegs;
+
+    /** Number of physical floating point registers. */
+    int numPhysicalFloatRegs;
+
+    /** Number of miscellaneous registers. */
+    int numMiscRegs;
+
+    /** Number of logical integer + float registers. */
+    //int numLogicalRegs;
+
+    /** Number of physical integer + float registers. */
+    int numPhysicalRegs;
+
+    /** The integer zero register.  This implementation assumes it is always
+     *  zero and never can be anything else.
+     */
+   // RegIndex intZeroReg;
+
+    /** The floating point zero register.  This implementation assumes it is
+     *  always zero and never can be anything else.
+     */
+   // RegIndex floatZeroReg;
+
+  class regPredEntry
+  {
+    public :
+      PhysRegIndex physical_reg;
+      int ShadowCellNum;
+      int actual_dependencies;
+
+    regPredEntry()
+            : physical_reg(0), ShadowCellNum(-1), actual_dependencies(0)
+        { };
+  };
+
+private:
+    /** Integer PRT map. */
+    std::vector<regPredEntry> intRegPredMap;
+
+    /** Floating point PRT map. */
+    //std::vector<RenameEntry> floatRenameMap;
+    std::vector<regPredEntry> floatRegPredMap;
+};
+#endif// __CPU_O3_REG_PRED_HH__
+
+/*
+ * Copyright (c) 2004-2005 The Regents of The University of Michigan
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met: redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer;
+ * redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution;
+ * neither the name of the copyright holders nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Authors: Raunaq Majumdar, Amogh Manjunath
+ */
+
+#include <vector>
+
+#include "reg_pred.hh"
+#include "debug/Rename.hh"
+
+using namespace std;
+
+simpleRegisterPredictorTable::~simpleRegisterPredictorTable()
+{
+}
+
+void
+simpleRegisterPredictorTable::init(unsigned _numPhysicalIntRegs,
+                                   PhysRegIndex &ireg_idx,
+
+                     	           unsigned _numPhysicalFloatRegs,
+                     	           PhysRegIndex &freg_idx,
+
+                     	           unsigned _numMiscRegs,
+
+                     	          // RegIndex _intZeroReg,
+                     	          // RegIndex _floatZeroReg,
+
+                     	           int map_id,
+                     	           bool bindRegs)
+{
+  id = map_id;
+
+    numPhysicalIntRegs = _numPhysicalIntRegs;
+
+    numPhysicalFloatRegs = _numPhysicalFloatRegs;
+
+    numMiscRegs = _numMiscRegs;
+
+    //intZeroReg = _intZeroReg;
+    //floatZeroReg = _floatZeroReg;
+
+    DPRINTF(Rename, "Creating PRT map %i.  Phys: %i , Float: "
+            "%i.\n", id,  numPhysicalIntRegs,  numPhysicalFloatRegs);
+
+    //numLogicalRegs = numLogicalIntRegs + numLogicalFloatRegs;
+
+    numPhysicalRegs = numPhysicalIntRegs + numPhysicalFloatRegs;
+    //Create the PRT maps
+    intRegPredMap.resize(numPhysicalIntRegs);
+    floatRegPredMap.resize(numPhysicalFloatRegs*2);
+
+if (bindRegs) {
+        DPRINTF(Rename, "Binding registers into reg predictor %i\n",id);
+
+        // Initialize the entries in the integer rename map to point to the
+        // physical registers of the same index
+        for (PhysRegIndex index = 0; index < numPhysicalIntRegs; ++index)
+        {
+            intRegPredMap[index].physical_reg = index;
+            intRegPredMap[index].ShadowCellNum = -1;
+	    DPRINTF(Rename,"check index intregPredMap %i \n  ",intRegPredMap[index].physical_reg );
+
+        }
+	//cout<<"no of int reg"<<index<<endl;
+	cout<<"no of float reg"<<numPhysicalFloatRegs<<endl;
+        cout<<"no of phsy reg"<<numPhysicalRegs<<endl;
+
+        // Initialize the entries in the floating point rename map to point to
+        // the physical registers of the same index
+        // Although the index refers purely to architected registers, because
+        // the floating reg indices come after the integer reg indices, they
+        // may exceed the size of a normal RegIndex (short).
+        for (PhysRegIndex index = numPhysicalIntRegs;
+             index < numPhysicalRegs; ++index)
+        {
+            //cout<<"INDEX float"<<index<<endl;
+                         floatRegPredMap[index].physical_reg = index;
+	      floatRegPredMap[index].ShadowCellNum = -1;
+		 DPRINTF(Rename,"check index floatregPredMap %i \n  ",floatRegPredMap[index].physical_reg );
+	            
+        }
+    }
+
+else {
+        DPRINTF(Rename, "Binding registers into reg predictor %i\n",id);
+	DPRINTF(Rename, "checkpoint %i\n ",id);
+        PhysRegIndex temp_ireg = ireg_idx;
+
+        for (PhysRegIndex index = 0; index < numPhysicalIntRegs; ++index)
+        {
+            intRegPredMap[index].physical_reg = temp_ireg++;
+            intRegPredMap[index].ShadowCellNum=-1;
+
+	    DPRINTF(Rename,"check index else intregPredMap %i \n  ",intRegPredMap[index].physical_reg );
+
+        }
+
+        PhysRegIndex temp_freg = freg_idx;
+
+        for (PhysRegIndex index = numPhysicalIntRegs;
+             index < numPhysicalRegs; ++index)
+        {
+            floatRegPredMap[index].physical_reg = temp_freg++;
+	    floatRegPredMap[index].ShadowCellNum = -1;
+
+		DPRINTF(Rename,"check index  else floatregPredMap %i \n  ",floatRegPredMap[index].physical_reg );
+
+        }
+    }
+}
+
+simpleRegisterPredictorTable::PredictorInfo
+simpleRegisterPredictorTable::lookup(PhysRegIndex phy_reg)
+{
+PredictorInfo Prediction_Return;
+    if (phy_reg < numPhysicalIntRegs) {
+        Prediction_Return.first=intRegPredMap[phy_reg].physical_reg;
+       	Prediction_Return.second=intRegPredMap[phy_reg].ShadowCellNum;
+        DPRINTF(Rename,"In reg_pred.cc done int lookup case with phy reg %i and ShadowCellnum %i\n  ", Prediction_Return.first, Prediction_Return.second );
+
+	//return PredictorInfo(0,0);	
+//return VersionInfo(intPRTMap[phy_reg].physical_reg,intPRTMap[phy_reg].two_bit_version_count);
+    } else if (phy_reg < numPhysicalRegs) {
+        PredictorInfo Prediction_Return;
+	Prediction_Return.first=floatRegPredMap[phy_reg].physical_reg;
+       	Prediction_Return.second=floatRegPredMap[phy_reg].ShadowCellNum;
+	DPRINTF(Rename,"In reg_pred.cc done float lookup case with phy reg %i and ShadowCellnum %i \n ", Prediction_Return.first, Prediction_Return.second );
+	//return PredictorInfo(0,0);	
+    } else {
+        // Subtract off the misc registers offset.
+        phy_reg = phy_reg - numPhysicalRegs;
+
+        // Misc. regs don't rename, so simply add the base arch reg to
+        // the number of physical registers.
+        PredictorInfo Prediction_Return;
+	Prediction_Return.first = numPhysicalRegs + phy_reg;
+	Prediction_Return.second = 0;
+	DPRINTF(Rename,"In reg_pred.cc done misc lookup case with phy reg %i and ShadowCellnum %i \n ", Prediction_Return.first, Prediction_Return.second );
+
+        //return numPhysicalRegs + phy_reg;
+        //return PredictorInfo(0,0);
+    }
+return Prediction_Return;
+}
+
+simpleRegisterPredictorTable::PredictorInfo
+simpleRegisterPredictorTable::setRegPredictorEntry(PhysRegIndex phys_reg, unsigned PC)
+{
+PredictorInfo predicted_info;
+  if(phys_reg < numPhysicalIntRegs)
+  {
+    if(intRegPredMap[phys_reg].ShadowCellNum != -1)
+    {
+      predicted_info = std::make_pair(phys_reg,intRegPredMap[phys_reg].ShadowCellNum);
+      //predicted_info.first = 0;
+      //predicted_info.second=0;
+    }
+    else
+    {
+      DPRINTF(Rename,"In reg_pred.cc PC = %u\n",PC);
+      int r1 = PC & 0xF;
+      DPRINTF(Rename,"In reg_pred.cc r1 = %u\n",r1);
+      int r2 = PC & 0xF0;
+      DPRINTF(Rename,"In reg_pred.cc r2 = %u\n",r2);
+      int r3 = PC & 0xF00;
+      DPRINTF(Rename,"In reg_pred.cc r3 = %u\n",r3);
+      int r4 = PC & 0xF000;
+      DPRINTF(Rename,"In reg_pred.cc r4 = %u\n",r4);
+
+      int sum = r1+r2+r3+r4;
+      
+      if(sum <= 400)
+        intRegPredMap[phys_reg].ShadowCellNum = 0;
+      else if(sum > 400 && sum <= 450)
+        intRegPredMap[phys_reg].ShadowCellNum = 1;  
+      else if(sum > 450 && sum <= 500)
+        intRegPredMap[phys_reg].ShadowCellNum = 2;
+      else
+        intRegPredMap[phys_reg].ShadowCellNum = 3;
+      DPRINTF(Rename,"In reg_pred.cc for int reg, calculated sum = %d\n",sum);
+    }
+  predicted_info = std::make_pair(phys_reg,intRegPredMap[phys_reg].ShadowCellNum);
+  //predicted_info.first = 0;
+  //predicted_info.second = 0;
+  }
+ 
+  else if(phys_reg < numPhysicalRegs)
+  {
+    if(floatRegPredMap[phys_reg].ShadowCellNum != -1)
+    {
+      predicted_info = std::make_pair(phys_reg,floatRegPredMap[phys_reg].ShadowCellNum);
+      //predicted_info.first = 0;
+      //predicted_info.second = 0;
+
+    }
+    else
+    {
+      int r1 = PC & 0xF;
+      int r2 = PC & 0xF0;
+      int r3 = PC & 0xF00;
+      int r4 = PC & 0xF0000;
+
+      int sum = r1+r2+r3+r4;
+      
+      if(sum <= 300)
+        floatRegPredMap[phys_reg].ShadowCellNum = 0;
+      else if(sum > 300 && sum <= 450)
+        floatRegPredMap[phys_reg].ShadowCellNum = 1;  
+      else if(sum > 450 && sum <= 600)
+        floatRegPredMap[phys_reg].ShadowCellNum = 2;
+      else
+        floatRegPredMap[phys_reg].ShadowCellNum = 3;
+      DPRINTF(Rename,"In reg_pred.cc for float reg, calculated sum = %d\n",sum);
+    }
+  predicted_info = std::make_pair(phys_reg,floatRegPredMap[phys_reg].ShadowCellNum);
+  //predicted_info.first = 0;
+  //predicted_info.second = 0;
+
+  }
+return predicted_info;
+}
+
+
+
+simpleRegisterPredictorTable::PredictorInfo
+simpleRegisterPredictorTable::updateRegPredictorEntry(PhysRegIndex phys_reg, int change, int value)
+{
+PredictorInfo predicted_info;
+//commit stage -> if there is redefining and 2bit counter has saturated , update the shadowCell entry for that physical register
+//change : 1-> decrement , 0-> increment
+  if(phys_reg < numPhysicalIntRegs)
+  {
+    if(change == 1)
+    {
+      intRegPredMap[phys_reg].ShadowCellNum = (intRegPredMap[phys_reg].ShadowCellNum)-value; 
+    }
+    else
+    {
+      intRegPredMap[phys_reg].ShadowCellNum = (intRegPredMap[phys_reg].ShadowCellNum)+value;     
+    }
+        
+  predicted_info = std::make_pair(phys_reg,intRegPredMap[phys_reg].ShadowCellNum);
+  //predicted_info.first = 0;
+  //predicted_info.second = 0;
+
+  }
+ 
+  else if(phys_reg < numPhysicalRegs)
+  {
+    if(change == 1)
+    {
+      floatRegPredMap[phys_reg].ShadowCellNum = (floatRegPredMap[phys_reg].ShadowCellNum)-value; 
+    }
+    else
+    {
+      floatRegPredMap[phys_reg].ShadowCellNum = (floatRegPredMap[phys_reg].ShadowCellNum)+value;     
+    }    
+  predicted_info = std::make_pair(phys_reg,floatRegPredMap[phys_reg].ShadowCellNum);
+ // predicted_info.first = 0;
+ // predicted_info.second = 0;
+
+  }
+return predicted_info;
+}
+
+simpleRegisterPredictorTable::DependencyInfo
+simpleRegisterPredictorTable::setDependency(PhysRegIndex phy_reg)
+{
+DependencyInfo dependency_Return;
+    if (phy_reg < numPhysicalIntRegs) {        
+	dependency_Return.first=intRegPredMap[phy_reg].ShadowCellNum;
+      	  intRegPredMap[phy_reg].actual_dependencies++;
+	  dependency_Return.second=intRegPredMap[phy_reg].actual_dependencies;
+	DPRINTF(Rename,"In reg_pred.cc int Dependency set; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+
+	//return DependencyInfo(0,0);	
+//return VersionInfo(intPRTMap[phy_reg].physical_reg,intPRTMap[phy_reg].two_bit_version_count);
+    } else if (phy_reg < numPhysicalRegs) {
+        //DependencyInfo dependency_Return;
+	dependency_Return.first=floatRegPredMap[phy_reg].ShadowCellNum;
+        floatRegPredMap[phy_reg].actual_dependencies++;
+	dependency_Return.second=floatRegPredMap[phy_reg].actual_dependencies;
+	DPRINTF(Rename,"In reg_pred.cc float Dependency set; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+
+	//return DependencyInfo(0,0);	
+    } else {
+        // Subtract off the misc registers offset.
+        phy_reg = phy_reg - numPhysicalRegs;
+
+        // Misc. regs don't rename, so simply add the base arch reg to
+        // the number of physical registers.
+        //DependencyInfo dependency_Return;
+	dependency_Return.first = 0;//numPhysicalRegs + phy_reg;
+	dependency_Return.second = 0;
+	DPRINTF(Rename,"In reg_pred.cc misc Dependency set; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+
+        //return numPhysicalRegs + phy_reg;
+        //return DependencyInfo(0,0);
+    }
+return dependency_Return;
+}
+
+simpleRegisterPredictorTable::DependencyInfo
+simpleRegisterPredictorTable::getDependency(PhysRegIndex phy_reg)
+{
+DependencyInfo dependency_Return;
+    if (phy_reg < numPhysicalIntRegs) {
+        //DependencyInfo dependency_Return;
+	dependency_Return.first=intRegPredMap[phy_reg].ShadowCellNum;
+      	dependency_Return.second=intRegPredMap[phy_reg].actual_dependencies;
+        DPRINTF(Rename,"In reg_pred.cc int Dependency get; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+	
+	//return DependencyInfo(0,0);	
+//return VersionInfo(intPRTMap[phy_reg].physical_reg,intPRTMap[phy_reg].two_bit_version_count);
+    } else if (phy_reg < numPhysicalRegs) {
+       // DependencyInfo dependency_Return;
+	dependency_Return.first=floatRegPredMap[phy_reg].ShadowCellNum;
+       	dependency_Return.second=floatRegPredMap[phy_reg].actual_dependencies;
+	DPRINTF(Rename,"In reg_pred.cc float Dependency get; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+
+	//return DependencyInfo(0,0);	
+    } else {
+        // Subtract off the misc registers offset.
+        phy_reg = phy_reg - numPhysicalRegs;
+
+        // Misc. regs don't rename, so simply add the base arch reg to
+        // the number of physical registers.
+       // DependencyInfo dependency_Return;
+        dependency_Return.first = 0;//numPhysicalRegs + phy_reg;
+	dependency_Return.second = 0;
+	DPRINTF(Rename,"In reg_pred.cc misc Dependency get; ShadowCellNum %d and actual dependency %d\n  ", dependency_Return.first, dependency_Return.second );
+
+        //return numPhysicalRegs + phy_reg;
+        //return DependencyInfo(0,0);
+    }
+return dependency_Return;
+
+}
